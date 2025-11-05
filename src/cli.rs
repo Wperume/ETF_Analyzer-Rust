@@ -3,9 +3,13 @@ use clap::Parser;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
-    /// Input file path
+    /// Input file path (single CSV file)
     #[arg(short, long)]
     pub input: Option<String>,
+
+    /// Multiple ETF holdings files (pattern: {etf_name}-etf-holdings.csv)
+    #[arg(long, value_delimiter = ',')]
+    pub holdings: Vec<String>,
 
     /// Output file path
     #[arg(short, long)]
