@@ -1,5 +1,9 @@
 pub mod cli;
 pub mod error;
+pub mod io;
+pub mod analysis;
+pub mod portfolio;
+pub mod report;
 
 pub use error::{Error, Result};
 

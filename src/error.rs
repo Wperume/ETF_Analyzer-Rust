@@ -31,4 +31,10 @@ impl From<anyhow::Error> for Error {
     }
 }
 
+impl From<polars::error::PolarsError> for Error {
+    fn from(err: polars::error::PolarsError) -> Self {
+        Error::Other(err.to_string())
+    }
+}
+
 pub type Result<T> = std::result::Result<T, Error>;

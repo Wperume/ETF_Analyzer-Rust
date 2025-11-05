@@ -7,10 +7,11 @@ description = "A command-line tool for ETF analysis"
 license = "MIT"
 
 [dependencies]
+polars = { version = "0.44", features = ["lazy", "csv", "json", "dtype-full"] }
+csv = "1.3"
 clap = { version = "4.5", features = ["derive"] }
 anyhow = "1.0"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+rayon = "1.10"
 
 [dev-dependencies]
 assert_cmd = "2.0"
