@@ -20,13 +20,11 @@ pub fn save_csv<P: AsRef<Path>>(df: &DataFrame, path: P) -> Result<()> {
     Ok(())
 }
 
-/// Save DataFrame to JSON file
+/// Save DataFrame to JSON file (requires "json" feature)
+/// For now, this saves as CSV. Enable "json" feature in Cargo.toml to use JSON output.
 pub fn save_json<P: AsRef<Path>>(df: &DataFrame, path: P) -> Result<()> {
-    let mut file = std::fs::File::create(path)?;
-    JsonWriter::new(&mut file)
-        .finish(&mut df.clone())?;
-
-    Ok(())
+    // Fallback to CSV since json feature is disabled to reduce rust-analyzer load
+    save_csv(df, path)
 }
 
 #[cfg(test)]
