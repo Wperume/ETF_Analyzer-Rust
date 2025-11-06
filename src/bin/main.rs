@@ -5,59 +5,33 @@ fn main() -> Result<()> {
 
     if args.verbose {
         println!("ETF Analyzer starting...");
+        println!("Loading portfolio from directory: {}", args.data_dir);
     }
 
-    // Determine which mode to use: holdings or regular input
-    let has_holdings = !args.holdings.is_empty();
-    let holdings_paths = args.holdings.clone();
+    // Load all ETF holdings from the specified directory
+    let df = io::load_portfolio_from_directory(&args.data_dir)?;
 
-    let df = if has_holdings {
-        // Load ETF holdings files
-        if args.verbose {
-            println!("Loading {} ETF holdings files...", holdings_paths.len());
-            for file in &holdings_paths {
-                println!("  - {}", file);
-            }
-        }
-
-        io::load_multiple_holdings(holdings_paths)?
-    } else if let Some(input_path) = args.input {
-        // Load single CSV file
-        if args.verbose {
-            println!("Loading data from: {}", input_path);
-        }
-
-        io::load_csv(&input_path)?
-    } else {
-        println!("No input file specified. Use --help for usage information.");
-        println!("\nExamples:");
-        println!("  Single file:    cargo run -- --input data.csv");
-        println!("  Holdings files: cargo run -- --holdings spy-etf-holdings.csv,voo-etf-holdings.csv");
-        return Ok(());
-    };
+    // Extract unique ETF names from the "etf" column
+    let etf_names: Vec<String> = df
+        .column("etf")
+        .ok()
+        .and_then(|col| col.str().ok())
+        .map(|s| {
+            s.into_iter()
+                .flatten()
+                .collect::<std::collections::HashSet<_>>()
+                .into_iter()
+                .map(|s| s.to_string())
+                .collect()
+        })
+        .unwrap_or_else(|| vec!["Unknown".to_string()]);
 
     if args.verbose {
+        println!("Found {} ETFs: {}", etf_names.len(), etf_names.join(", "));
         println!("{}", report::generate_dataframe_summary(&df)?);
     }
 
-    // Perform analysis
-    // Note: Adjust column names based on your data
-    // For holdings files, you can filter by ETF:
-    // let spy_holdings = df.filter(&df.column("etf")?.equal("SPY")?)?;
-
     // Create a Portfolio struct to manage state
-    let etf_names: Vec<String> = if !args.holdings.is_empty() {
-        // Extract unique ETF names from the holdings
-        args.holdings
-            .iter()
-            .filter_map(|path| {
-                path.split('-').next().map(|s| s.to_uppercase())
-            })
-            .collect()
-    } else {
-        vec!["Sample ETF".to_string()]
-    };
-
     let mut portfolio = portfolio::Portfolio::new(etf_names);
     portfolio.load_data(df)?;
 

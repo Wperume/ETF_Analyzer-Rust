@@ -35,3 +35,11 @@ dist/
 # Backup files
 *.bak
 *.tmp
+
+# Data directory - ignore contents but keep the directory
+data/*
+!data/.gitkeep
+
+# Output files
+*.csv
+!example-data/**/*.csv

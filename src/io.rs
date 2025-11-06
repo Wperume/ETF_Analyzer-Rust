@@ -1,5 +1,6 @@
 use polars::prelude::*;
 use std::path::Path;
+use std::fs;
 use crate::Result;
 
 /// Load ETF data from a CSV file
@@ -106,6 +107,49 @@ pub fn load_multiple_holdings<P: AsRef<Path>>(paths: Vec<P>) -> Result<DataFrame
     }
 
     Ok(combined)
+}
+
+/// Load all ETF holdings CSV files from a directory
+/// Looks for files matching pattern: *-etf-holdings.csv
+pub fn load_portfolio_from_directory<P: AsRef<Path>>(dir_path: P) -> Result<DataFrame> {
+    let dir_path = dir_path.as_ref();
+
+    if !dir_path.exists() {
+        return Err(crate::Error::Other(
+            format!("Directory does not exist: {}", dir_path.display())
+        ));
+    }
+
+    if !dir_path.is_dir() {
+        return Err(crate::Error::Other(
+            format!("Path is not a directory: {}", dir_path.display())
+        ));
+    }
+
+    // Read directory and find all ETF holdings CSV files
+    let entries = fs::read_dir(dir_path)?;
+    let mut csv_files: Vec<_> = entries
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.is_file() &&
+            path.extension().map_or(false, |ext| ext == "csv") &&
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .map_or(false, |name| name.ends_with("-etf-holdings.csv"))
+        })
+        .collect();
+
+    if csv_files.is_empty() {
+        return Err(crate::Error::Other(
+            format!("No ETF holdings CSV files found in directory: {}", dir_path.display())
+        ));
+    }
+
+    // Sort for consistent ordering
+    csv_files.sort();
+
+    load_multiple_holdings(csv_files)
 }
 
 #[cfg(test)]
