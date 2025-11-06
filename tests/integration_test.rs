@@ -4,7 +4,11 @@ use predicates::prelude::*;
 #[test]
 fn test_cli_runs() {
     let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
-    cmd.assert().success();
+    // With the updated CLI, we need to provide either -d or -i
+    // Test that it fails with the expected error message when neither is provided
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("Either --data-dir (-d) or --import (-i) must be specified"));
 }
 
 #[test]

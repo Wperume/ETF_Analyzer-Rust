@@ -2,6 +2,7 @@ use polars::prelude::*;
 use std::path::Path;
 use std::fs;
 use std::io::{self, Write};
+use rayon::prelude::*;
 use crate::Result;
 
 /// Load ETF data from a CSV file
@@ -138,16 +139,22 @@ pub fn load_holdings_csv<P: AsRef<Path>>(path: P) -> Result<DataFrame> {
 }
 
 /// Load multiple ETF holdings files and combine them into a single DataFrame
-pub fn load_multiple_holdings<P: AsRef<Path>>(paths: Vec<P>) -> Result<DataFrame> {
+/// Uses parallel processing with Rayon for improved performance when loading many files
+pub fn load_multiple_holdings<P: AsRef<Path> + Send + Sync>(paths: Vec<P>) -> Result<DataFrame> {
     if paths.is_empty() {
         return Err(crate::Error::Other("No paths provided".to_string()));
     }
 
-    let mut dataframes = Vec::new();
+    // Load all files in parallel using Rayon
+    let results: Vec<Result<DataFrame>> = paths
+        .par_iter()
+        .map(|path| load_holdings_csv(path))
+        .collect();
 
-    for path in paths {
-        let df = load_holdings_csv(path)?;
-        dataframes.push(df);
+    // Collect results and handle errors
+    let mut dataframes = Vec::new();
+    for result in results {
+        dataframes.push(result?);
     }
 
     // Vertically concatenate all DataFrames
