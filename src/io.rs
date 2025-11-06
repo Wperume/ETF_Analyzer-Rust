@@ -1,6 +1,7 @@
 use polars::prelude::*;
 use std::path::Path;
 use std::fs;
+use std::io::{self, Write};
 use crate::Result;
 
 /// Load ETF data from a CSV file
@@ -104,29 +105,29 @@ pub fn load_holdings_csv<P: AsRef<Path>>(path: P) -> Result<DataFrame> {
         df = df.drop("No.")?;
     }
 
-    // Rename "% Weight" to "weight"
+    // Rename "% Weight" to "Weight"
     if df.column("% Weight").is_ok() {
-        df.rename("% Weight", "weight".into())?;
+        df.rename("% Weight", "Weight".into())?;
     }
 
     // Add ETF name column
     let etf_col = Series::new(
-        "etf".into(),
+        "ETF".into(),
         vec![etf_name.as_str(); df.height()]
     );
     df.with_column(etf_col)?;
 
-    // Reorder columns to put "etf" first
+    // Reorder columns to put "ETF" first
     let column_names: Vec<String> = df.get_column_names()
         .iter()
         .map(|s| s.to_string())
         .collect();
 
-    let mut new_order: Vec<String> = vec!["etf".to_string()];
+    let mut new_order: Vec<String> = vec!["ETF".to_string()];
 
-    // Add all other columns except "etf"
+    // Add all other columns except "ETF"
     for col in &column_names {
-        if col != "etf" {
+        if col != "ETF" {
             new_order.push(col.clone());
         }
     }
@@ -203,6 +204,84 @@ pub fn load_portfolio_from_directory<P: AsRef<Path>>(dir_path: P) -> Result<Data
     csv_files.sort();
 
     load_multiple_holdings(csv_files)
+}
+
+/// Determine file format from extension
+#[derive(Debug, PartialEq)]
+pub enum FileFormat {
+    Csv,
+    Parquet,
+}
+
+impl FileFormat {
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Self {
+        path.as_ref()
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| match ext.to_lowercase().as_str() {
+                "parquet" | "pq" => FileFormat::Parquet,
+                _ => FileFormat::Csv,
+            })
+            .unwrap_or(FileFormat::Parquet) // Default to Parquet if no extension
+    }
+}
+
+/// Import DataFrame from file (auto-detects CSV or Parquet based on extension)
+pub fn import_dataframe<P: AsRef<Path>>(path: P) -> Result<DataFrame> {
+    let path_ref = path.as_ref();
+
+    if !path_ref.exists() {
+        return Err(crate::Error::Other(
+            format!("Import file does not exist: {}", path_ref.display())
+        ));
+    }
+
+    match FileFormat::from_path(path_ref) {
+        FileFormat::Csv => load_csv(path_ref),
+        FileFormat::Parquet => {
+            let file = std::fs::File::open(path_ref)?;
+            let df = ParquetReader::new(file).finish()?;
+            Ok(df)
+        }
+    }
+}
+
+/// Export DataFrame to file (auto-detects CSV or Parquet based on extension)
+/// Returns true if file was written, false if user cancelled overwrite
+pub fn export_dataframe<P: AsRef<Path>>(
+    df: &DataFrame,
+    path: P,
+    force: bool,
+) -> Result<bool> {
+    let path_ref = path.as_ref();
+
+    // Check if file exists and prompt for overwrite unless --force is specified
+    if path_ref.exists() && !force {
+        print!("File '{}' already exists. Overwrite? [y/N]: ", path_ref.display());
+        io::stdout().flush()?;
+
+        let mut response = String::new();
+        io::stdin().read_line(&mut response)?;
+
+        let response = response.trim().to_lowercase();
+        if response != "y" && response != "yes" {
+            println!("Export cancelled.");
+            return Ok(false);
+        }
+    }
+
+    match FileFormat::from_path(path_ref) {
+        FileFormat::Csv => {
+            save_csv(df, path_ref)?;
+        }
+        FileFormat::Parquet => {
+            let file = std::fs::File::create(path_ref)?;
+            ParquetWriter::new(file)
+                .finish(&mut df.clone())?;
+        }
+    }
+
+    Ok(true)
 }
 
 #[cfg(test)]
