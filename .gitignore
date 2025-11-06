@@ -40,6 +40,16 @@ dist/
 data/*
 !data/.gitkeep
 
+# Analysis directory - ignore contents but keep the directory
+analysis/*
+!analysis/.gitkeep
+
+# Data-prefixed and analysis-prefixed directories (except "data" and "analysis" themselves)
+data*/
+!data/
+analysis*/
+!analysis/
+
 # Output files
 *.csv
 !example-data/**/*.csv
