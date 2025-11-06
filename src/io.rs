@@ -51,9 +51,10 @@ fn extract_etf_name<P: AsRef<Path>>(path: P) -> Result<String> {
 /// Load ETF holdings CSV file with specific format
 /// Expected columns: "No.", "Name", "Ticker", "Asset Class", "% Weight", "Shares"
 /// The function will:
-/// - Skip the "No." column (index)
+/// - Synthesize Symbol values for empty/null/n/a entries using format: {ETF}-{No.}
 /// - Rename "% Weight" to "weight"
 /// - Add an "etf" column with the ETF name extracted from filename
+/// - Reorder columns so "etf" is first
 pub fn load_holdings_csv<P: AsRef<Path>>(path: P) -> Result<DataFrame> {
     let path_ref = path.as_ref();
     let etf_name = extract_etf_name(path_ref)?;
@@ -63,7 +64,42 @@ pub fn load_holdings_csv<P: AsRef<Path>>(path: P) -> Result<DataFrame> {
         .try_into_reader_with_file_path(Some(path_ref.to_path_buf()))?
         .finish()?;
 
-    // Drop the "No." column if it exists (it's just an index)
+    // Get the "No." column before we process it
+    let no_col = if df.column("No.").is_ok() {
+        Some(df.column("No.")?.clone())
+    } else {
+        None
+    };
+
+    // Synthesize Symbol values for empty/null/n/a entries
+    if let Some(no_series) = &no_col {
+        if df.column("Symbol").is_ok() {
+            let symbol_col = df.column("Symbol")?.str()?;
+            let no_values = no_series.cast(&DataType::String)?;
+            let no_str = no_values.str()?;
+
+            let synthesized: Vec<Option<String>> = symbol_col
+                .into_iter()
+                .zip(no_str.into_iter())
+                .map(|(symbol, no)| {
+                    match symbol {
+                        Some(s) if !s.is_empty() && s.to_lowercase() != "n/a" => {
+                            Some(s.to_string())
+                        }
+                        _ => {
+                            // Synthesize: {ETF}-{No}
+                            no.map(|n| format!("{}-{}", etf_name, n))
+                        }
+                    }
+                })
+                .collect();
+
+            let new_symbol_col = Series::new("Symbol".into(), synthesized);
+            df.replace("Symbol", new_symbol_col)?;
+        }
+    }
+
+    // Drop the "No." column if it exists (we don't need it anymore)
     if df.column("No.").is_ok() {
         df = df.drop("No.")?;
     }
@@ -79,6 +115,23 @@ pub fn load_holdings_csv<P: AsRef<Path>>(path: P) -> Result<DataFrame> {
         vec![etf_name.as_str(); df.height()]
     );
     df.with_column(etf_col)?;
+
+    // Reorder columns to put "etf" first
+    let column_names: Vec<String> = df.get_column_names()
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+
+    let mut new_order: Vec<String> = vec!["etf".to_string()];
+
+    // Add all other columns except "etf"
+    for col in &column_names {
+        if col != "etf" {
+            new_order.push(col.clone());
+        }
+    }
+
+    df = df.select(new_order)?;
 
     Ok(df)
 }
