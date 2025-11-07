@@ -293,6 +293,89 @@ pub fn get_unique_assets(df: &DataFrame) -> Result<DataFrame> {
     Ok(result)
 }
 
+/// Get overlapping assets (assets that appear in more than one ETF)
+/// Returns a DataFrame with columns: Symbol, Name, ETF_Count, Weight, ETF
+/// Can be sorted by symbol (alphabetical) or by ETF_Count (descending) then symbol
+pub fn get_overlap_assets(df: &DataFrame, sort_by: AssetsSortBy) -> Result<DataFrame> {
+    // Group by Symbol to get ETF count
+    let grouped = df
+        .clone()
+        .lazy()
+        .group_by([col("Symbol")])
+        .agg([
+            col("ETF").n_unique().alias("ETF_Count"),
+        ])
+        .collect()?;
+
+    // Filter for assets that appear in more than one ETF
+    let overlap_symbols = grouped
+        .clone()
+        .lazy()
+        .filter(col("ETF_Count").gt(lit(1u32)))
+        .select([col("Symbol")])
+        .collect()?;
+
+    // Get the list of overlapping symbols
+    let symbol_col = overlap_symbols.column("Symbol")?;
+    let symbol_str = symbol_col.str()?;
+    let overlap_symbol_set: std::collections::HashSet<String> = symbol_str
+        .into_iter()
+        .flatten()
+        .map(|s| s.to_string())
+        .collect();
+
+    // Filter original DataFrame to only include overlapping symbols
+    let df_symbol_col = df.column("Symbol")?;
+    let df_symbol_str = df_symbol_col.str()?;
+
+    let mask = BooleanChunked::from_iter(
+        df_symbol_str
+            .into_iter()
+            .map(|opt_str| {
+                opt_str.map_or(false, |s| overlap_symbol_set.contains(s))
+            })
+    );
+
+    let filtered = df.filter(&mask)?;
+
+    // Join with the grouped DataFrame to get ETF_Count for each row
+    let overlap_with_count = grouped
+        .clone()
+        .lazy()
+        .filter(col("ETF_Count").gt(lit(1u32)))
+        .collect()?;
+
+    let result = filtered
+        .clone()
+        .lazy()
+        .join(
+            overlap_with_count.lazy(),
+            [col("Symbol")],
+            [col("Symbol")],
+            JoinArgs::new(JoinType::Inner)
+        )
+        .collect()?;
+
+    // Reorder columns: Symbol, Name, ETF_Count, Weight, ETF
+    let result = result.select(["Symbol", "Name", "ETF_Count", "Weight", "ETF"])?;
+
+    // Sort based on the sort_by parameter
+    let result = match sort_by {
+        AssetsSortBy::Symbol => {
+            result.sort(["Symbol"], SortMultipleOptions::default())?
+        }
+        AssetsSortBy::EtfCount => {
+            result.sort(
+                ["ETF_Count", "Symbol"],
+                SortMultipleOptions::default()
+                    .with_order_descending_multi([true, false])
+            )?
+        }
+    };
+
+    Ok(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -464,5 +547,71 @@ mod tests {
         assert_eq!(AssetsSortBy::from_str("etf_count"), AssetsSortBy::EtfCount);
         assert_eq!(AssetsSortBy::from_str("etfs"), AssetsSortBy::EtfCount);
         assert_eq!(AssetsSortBy::from_str("invalid"), AssetsSortBy::Symbol); // Default
+    }
+
+    #[test]
+    fn test_get_overlap_assets() {
+        let df = df! {
+            "ETF" => &["SPY", "QQQ", "SPY", "IWF", "VTI"],
+            "Symbol" => &["AAPL", "AAPL", "MSFT", "GOOGL", "GOOGL"],
+            "Name" => &["Apple", "Apple", "Microsoft", "Google", "Google"],
+            "Weight" => &["5%", "6%", "7%", "8%", "9%"]
+        }.unwrap();
+
+        let overlap = get_overlap_assets(&df, AssetsSortBy::Symbol).unwrap();
+
+        // AAPL and GOOGL appear in 2 ETFs each (MSFT only in 1)
+        assert_eq!(overlap.height(), 4); // 2 rows for AAPL + 2 rows for GOOGL
+
+        // Verify column order: Symbol, Name, ETF_Count, Weight, ETF
+        let columns = overlap.get_column_names();
+        assert_eq!(columns, vec!["Symbol", "Name", "ETF_Count", "Weight", "ETF"]);
+
+        // Verify ETF_Count column exists and has correct values
+        let etf_counts = overlap.column("ETF_Count").unwrap().u32().unwrap();
+        for count in etf_counts.into_iter().flatten() {
+            assert_eq!(count, 2); // All overlapping assets appear in 2 ETFs
+        }
+
+        let symbols = overlap.column("Symbol").unwrap().str().unwrap();
+        let symbol_vec: Vec<&str> = symbols.into_iter().flatten().collect();
+        assert!(symbol_vec.contains(&"AAPL"));
+        assert!(symbol_vec.contains(&"GOOGL"));
+        assert!(!symbol_vec.contains(&"MSFT")); // MSFT only appears in 1 ETF
+    }
+
+    #[test]
+    fn test_get_overlap_assets_sort_by_count() {
+        let df = df! {
+            "ETF" => &["SPY", "QQQ", "SPY", "IWF", "VTI", "DIA"],
+            "Symbol" => &["AAPL", "AAPL", "AAPL", "GOOGL", "GOOGL", "MSFT"],
+            "Name" => &["Apple", "Apple", "Apple", "Google", "Google", "Microsoft"],
+            "Weight" => &["5%", "6%", "7%", "8%", "9%", "10%"]
+        }.unwrap();
+
+        let overlap = get_overlap_assets(&df, AssetsSortBy::EtfCount).unwrap();
+
+        // Should be sorted by ETF_Count descending, then by Symbol
+        let etf_counts = overlap.column("ETF_Count").unwrap().u32().unwrap();
+        let counts: Vec<u32> = etf_counts.into_iter().flatten().collect();
+
+        // AAPL appears 3 times (3 ETFs), GOOGL 2 times (2 ETFs)
+        // First rows should be AAPL (count=3)
+        assert!(counts[0] >= counts[counts.len() - 1]); // Descending order
+    }
+
+    #[test]
+    fn test_get_overlap_assets_no_overlaps() {
+        let df = df! {
+            "ETF" => &["SPY", "QQQ", "IWF"],
+            "Symbol" => &["AAPL", "GOOGL", "MSFT"],
+            "Name" => &["Apple", "Google", "Microsoft"],
+            "Weight" => &["5%", "6%", "7%"]
+        }.unwrap();
+
+        let overlap = get_overlap_assets(&df, AssetsSortBy::Symbol).unwrap();
+
+        // No assets appear in multiple ETFs
+        assert_eq!(overlap.height(), 0);
     }
 }

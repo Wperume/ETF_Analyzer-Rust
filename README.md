@@ -53,16 +53,16 @@ etf_analyzer [OPTIONS]
 - `-i FILE` or `--import FILE`: Import previously exported DataFrame
 - `-f FUNCTION` or `--function FUNCTION`: Operation to perform
   - `summary` (default): Display ETF portfolio summary (CSV export includes asset lists)
-  - `list`: List all ETF symbols
-  - `assets`: Show all assets with ETF associations (sorted by symbol)
-  - `unique`: Show assets that appear in only one ETF (ETF_Count = 1)
-  - `overlap`: Show assets that appear in multiple ETFs (ETF_Count > 1, sorted by count)
-  - `compare`: Compare specific ETFs side-by-side (requires `--etfs`)
-  - `mapping`: Show asset-to-ETF mapping
   - `export`: Export DataFrame to file (requires `-o`)
+  - `assets`: Show all assets with ETF associations and aggregated ETF counts
+  - `unique`: Show assets that appear in only one ETF
+  - `overlap`: Show assets that appear in multiple ETFs (with ETF_Count column)
+  - `list`: List all ETF symbols (Coming Soon)
+  - `compare`: Compare specific ETFs side-by-side (Coming Soon)
+  - `mapping`: Show asset-to-ETF mapping (Coming Soon)
 - `-o FILE` or `--output FILE`: Output file (if not specified, print to stdout)
 - `--etfs ETF1,ETF2,...`: Comma-separated list of ETF symbols to include in analysis (filters data before processing)
-- `--sort-by {symbol,count}`: Sort order for assets function - 'symbol' (alphabetical, default) or 'count' (by ETF count)
+- `--sort-by {symbol,count}`: Sort order for assets and overlap functions - 'symbol' (alphabetical, default) or 'count' (by ETF count descending)
 - `--symbol-col COLUMN`: Column name for asset symbol (default: Symbol)
 - `--name-col COLUMN`: Column name for asset name (default: Name)
 - `--weight-col COLUMN`: Column name for weight/percentage (default: % Weight)
@@ -127,6 +127,49 @@ Asset distribution by ETF count:
   427 assets found in 1 ETF
 ```
 
+### Unique Assets Output Format
+
+When using `-f unique`, the output contains assets that appear in only one ETF:
+
+**Columns:**
+- `Symbol`: Asset ticker symbol
+- `Name`: Asset name
+- `Weight`: Asset weight/percentage
+- `ETF`: ETF symbol containing this asset
+
+**Summary Output (stdout):**
+- Count of unique assets (assets appearing in only one ETF)
+
+**Example:**
+```
+Found 217 unique assets (appear in only one ETF)
+```
+
+### Overlap Assets Output Format
+
+When using `-f overlap`, the output contains assets that appear in multiple ETFs:
+
+**Columns:**
+- `Symbol`: Asset ticker symbol
+- `Name`: Asset name
+- `ETF_Count`: Number of ETFs containing this asset (always > 1)
+- `Weight`: Asset weight/percentage in this specific ETF
+- `ETF`: ETF symbol
+
+**Note:** Each asset will have multiple rows (one per ETF it appears in).
+
+**Sorting:**
+- `--sort-by symbol` (default): Alphabetical by asset symbol
+- `--sort-by count`: Descending by ETF_Count, then alphabetical by symbol
+
+**Summary Output (stdout):**
+- Count of overlapping assets (assets appearing in multiple ETFs)
+
+**Example:**
+```
+Found 53 overlapping assets (appear in multiple ETFs)
+```
+
 ## Examples
 
 ### Load Portfolio from Directory
@@ -178,6 +221,35 @@ etf_analyzer -d ./data -f assets --sort-by count -o assets.csv
 etf_analyzer -d ./data -f assets --etfs VTV,IVW --sort-by count -o filtered-assets.csv --verbose
 ```
 
+### Analyze Unique Assets
+
+```bash
+# Show assets that appear in only one ETF
+etf_analyzer -d ./data -f unique
+
+# Save to CSV (default extension automatically added)
+etf_analyzer -d ./data -f unique -o unique_assets
+
+# With specific ETF filter
+etf_analyzer -d ./data --etfs VTV,IVW,IWF -f unique -o unique.csv
+```
+
+### Analyze Overlapping Assets
+
+```bash
+# Show assets that appear in multiple ETFs (sorted by symbol)
+etf_analyzer -d ./data -f overlap
+
+# Sort by ETF count (assets in most ETFs first)
+etf_analyzer -d ./data -f overlap --sort-by count
+
+# Save to CSV
+etf_analyzer -d ./data -f overlap --sort-by count -o overlaps.csv
+
+# Filter to specific ETFs and find their overlaps
+etf_analyzer -d ./data --etfs VTV,IVW,IWF -f overlap -o overlap_value_etfs
+```
+
 ### Filter by ETF
 
 The `--etfs` option works with all functions to filter the analysis to specific ETFs:
@@ -188,6 +260,9 @@ etf_analyzer -d ./data --etfs VTI,VOO,SPY -f export -o filtered.parquet
 
 # Analyze assets in specific ETFs
 etf_analyzer -d ./data --etfs CORN,GLDM -f assets
+
+# Find overlaps between specific ETFs
+etf_analyzer -d ./data --etfs IVW,IWF,VTV -f overlap --sort-by count
 ```
 
 ### Other Analysis Functions (Coming Soon)
@@ -198,12 +273,6 @@ etf_analyzer -d ./data -f summary
 
 # List all ETF symbols
 etf_analyzer -d ./data -f list
-
-# Show unique assets (appear in only one ETF)
-etf_analyzer -d ./data -f unique
-
-# Show overlapping assets (appear in multiple ETFs)
-etf_analyzer -d ./data -f overlap
 
 # Compare specific ETFs side-by-side
 etf_analyzer -d ./data -f compare --etfs SPY,VOO,QQQ

@@ -131,6 +131,39 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
+    // Handle the overlap function
+    if args.function == "overlap" {
+        let sort_by = analysis::AssetsSortBy::from_str(&args.sort_by);
+
+        if args.verbose {
+            println!("Finding overlapping assets (appear in multiple ETFs)...");
+        }
+
+        let overlap_df = analysis::get_overlap_assets(&df, sort_by)?;
+
+        println!("Found {} overlapping assets (appear in multiple ETFs)", overlap_df.height());
+
+        // If output file is specified, save with default .csv extension if no extension provided
+        if let Some(output_path) = &args.output {
+            // Add .csv extension if no extension is present
+            let output_path_with_ext = if std::path::Path::new(output_path).extension().is_none() {
+                format!("{}.csv", output_path)
+            } else {
+                output_path.to_string()
+            };
+
+            if args.verbose {
+                println!("Saving overlapping assets to: {}", output_path_with_ext);
+            }
+            let written = io::export_dataframe(&overlap_df, &output_path_with_ext, args.force)?;
+            if written {
+                println!("Overlapping assets saved to: {}", output_path_with_ext);
+            }
+        }
+
+        return Ok(());
+    }
+
     // Extract unique ETF names from the "ETF" column
     let etf_names: Vec<String> = df
         .column("ETF")
