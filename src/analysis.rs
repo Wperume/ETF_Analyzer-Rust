@@ -316,4 +316,153 @@ mod tests {
         let sharpe = calculate_sharpe_ratio(&df, "returns", 0.02).unwrap();
         assert_eq!(sharpe, 0.0);
     }
+
+    #[test]
+    fn test_filter_etfs_single() {
+        let df = df! {
+            "ETF" => &["SPY", "QQQ", "SPY", "IWF"],
+            "Symbol" => &["AAPL", "MSFT", "GOOGL", "AMZN"],
+            "Name" => &["Apple", "Microsoft", "Google", "Amazon"],
+            "Weight" => &[0.1, 0.2, 0.3, 0.4]
+        }.unwrap();
+
+        let filtered = filter_etfs(&df, &vec!["SPY".to_string()]).unwrap();
+        assert_eq!(filtered.height(), 2);
+
+        let etf_col = filtered.column("ETF").unwrap().str().unwrap();
+        for val in etf_col.into_iter().flatten() {
+            assert_eq!(val, "SPY");
+        }
+    }
+
+    #[test]
+    fn test_filter_etfs_multiple() {
+        let df = df! {
+            "ETF" => &["SPY", "QQQ", "SPY", "IWF"],
+            "Symbol" => &["AAPL", "MSFT", "GOOGL", "AMZN"],
+            "Name" => &["Apple", "Microsoft", "Google", "Amazon"],
+            "Weight" => &[0.1, 0.2, 0.3, 0.4]
+        }.unwrap();
+
+        let filtered = filter_etfs(&df, &vec!["SPY".to_string(), "QQQ".to_string()]).unwrap();
+        assert_eq!(filtered.height(), 3);
+    }
+
+    #[test]
+    fn test_filter_etfs_case_insensitive() {
+        let df = df! {
+            "ETF" => &["SPY", "QQQ", "SPY"],
+            "Symbol" => &["AAPL", "MSFT", "GOOGL"],
+            "Name" => &["Apple", "Microsoft", "Google"],
+            "Weight" => &[0.1, 0.2, 0.3]
+        }.unwrap();
+
+        let filtered = filter_etfs(&df, &vec!["spy".to_string()]).unwrap();
+        assert_eq!(filtered.height(), 2);
+    }
+
+    #[test]
+    fn test_filter_etfs_empty_list() {
+        let df = df! {
+            "ETF" => &["SPY", "QQQ"],
+            "Symbol" => &["AAPL", "MSFT"],
+            "Name" => &["Apple", "Microsoft"],
+            "Weight" => &[0.1, 0.2]
+        }.unwrap();
+
+        let filtered = filter_etfs(&df, &vec![]).unwrap();
+        assert_eq!(filtered.height(), 2); // Should return all rows
+    }
+
+    #[test]
+    fn test_aggregate_assets() {
+        let df = df! {
+            "ETF" => &["SPY", "QQQ", "SPY", "IWF"],
+            "Symbol" => &["AAPL", "AAPL", "MSFT", "MSFT"],
+            "Name" => &["Apple", "Apple", "Microsoft", "Microsoft"],
+            "Weight" => &[0.1, 0.2, 0.3, 0.4]
+        }.unwrap();
+
+        let assets = aggregate_assets(&df, AssetsSortBy::Symbol).unwrap();
+        assert_eq!(assets.height(), 2); // Two unique symbols
+
+        let etf_counts = assets.column("ETF_Count").unwrap().u32().unwrap();
+
+        // Both AAPL and MSFT appear in 2 ETFs each
+        for count in etf_counts.into_iter().flatten() {
+            assert_eq!(count, 2);
+        }
+    }
+
+    #[test]
+    fn test_aggregate_assets_sort_by_count() {
+        let df = df! {
+            "ETF" => &["SPY", "QQQ", "SPY", "IWF", "VTI"],
+            "Symbol" => &["AAPL", "AAPL", "MSFT", "GOOGL", "GOOGL"],
+            "Name" => &["Apple", "Apple", "Microsoft", "Google", "Google"],
+            "Weight" => &[0.1, 0.2, 0.3, 0.4, 0.5]
+        }.unwrap();
+
+        let assets = aggregate_assets(&df, AssetsSortBy::EtfCount).unwrap();
+        assert_eq!(assets.height(), 3);
+
+        let etf_counts = assets.column("ETF_Count").unwrap().u32().unwrap();
+        let counts: Vec<u32> = etf_counts.into_iter().flatten().collect();
+
+        // Should be sorted by count descending: [2, 2, 1]
+        assert_eq!(counts[0], 2); // AAPL or GOOGL (both appear in 2 ETFs)
+        assert_eq!(counts[2], 1); // MSFT (appears in 1 ETF)
+    }
+
+    #[test]
+    fn test_get_unique_assets() {
+        let df = df! {
+            "ETF" => &["SPY", "QQQ", "SPY", "IWF"],
+            "Symbol" => &["AAPL", "AAPL", "MSFT", "GOOGL"],
+            "Name" => &["Apple", "Apple", "Microsoft", "Google"],
+            "Weight" => &["5%", "6%", "7%", "8%"]
+        }.unwrap();
+
+        let unique = get_unique_assets(&df).unwrap();
+
+        // Only MSFT and GOOGL appear in one ETF
+        assert_eq!(unique.height(), 2);
+
+        // Verify column order: Symbol, Name, Weight, ETF
+        let columns = unique.get_column_names();
+        assert_eq!(columns, vec!["Symbol", "Name", "Weight", "ETF"]);
+
+        let symbols = unique.column("Symbol").unwrap().str().unwrap();
+        let symbol_vec: Vec<&str> = symbols.into_iter().flatten().collect();
+        assert!(symbol_vec.contains(&"MSFT"));
+        assert!(symbol_vec.contains(&"GOOGL"));
+        assert!(!symbol_vec.contains(&"AAPL")); // AAPL appears in 2 ETFs
+    }
+
+    #[test]
+    fn test_summarize_assets() {
+        let df = df! {
+            "Symbol" => &["AAPL", "MSFT", "GOOGL"],
+            "Name" => &["Apple", "Microsoft", "Google"],
+            "ETF_Count" => &[2u32, 1u32, 1u32],
+            "ETFs" => &["SPY, QQQ", "SPY", "IWF"]
+        }.unwrap();
+
+        let summary = summarize_assets(&df).unwrap();
+
+        assert!(summary.contains("Total assets: 3"));
+        assert!(summary.contains("2 assets found in 1 ETF"));
+        assert!(summary.contains("1 asset found in 2 ETFs"));
+    }
+
+    #[test]
+    fn test_assets_sort_by_from_str() {
+        assert_eq!(AssetsSortBy::from_str("symbol"), AssetsSortBy::Symbol);
+        assert_eq!(AssetsSortBy::from_str("alpha"), AssetsSortBy::Symbol);
+        assert_eq!(AssetsSortBy::from_str("alphabetical"), AssetsSortBy::Symbol);
+        assert_eq!(AssetsSortBy::from_str("count"), AssetsSortBy::EtfCount);
+        assert_eq!(AssetsSortBy::from_str("etf_count"), AssetsSortBy::EtfCount);
+        assert_eq!(AssetsSortBy::from_str("etfs"), AssetsSortBy::EtfCount);
+        assert_eq!(AssetsSortBy::from_str("invalid"), AssetsSortBy::Symbol); // Default
+    }
 }

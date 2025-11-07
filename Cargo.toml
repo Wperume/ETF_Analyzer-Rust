@@ -16,6 +16,7 @@ rayon = "1.10"
 [dev-dependencies]
 assert_cmd = "2.0"
 predicates = "3.0"
+tempfile = "3.13"
 
 [[bin]]
 name = "etf_analyzer"
