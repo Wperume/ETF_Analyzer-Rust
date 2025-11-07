@@ -311,6 +311,78 @@ pub fn get_etf_list(df: &DataFrame) -> Result<Vec<String>> {
     Ok(etf_list)
 }
 
+/// Get ETF summary
+/// Returns a DataFrame with columns: ETF, Asset_Count, Assets
+/// Assets is a comma-separated list of all asset symbols in the ETF
+pub fn get_etf_summary(df: &DataFrame) -> Result<DataFrame> {
+    // Group by ETF to get asset count and list of assets
+    // Note: Using .implode() directly creates List(List(...)), so we need to flatten it
+    let grouped = df
+        .clone()
+        .lazy()
+        .group_by([col("ETF")])
+        .agg([
+            col("Symbol").count().alias("Asset_Count"),
+            col("Symbol").implode().flatten().alias("Assets_List"),
+        ])
+        .collect()?;
+
+    // Convert the list of assets to comma-separated strings (same pattern as aggregate_assets)
+    let assets_col = grouped.column("Assets_List")?;
+    let asset_strings: Vec<String> = assets_col
+        .list()?
+        .into_iter()
+        .map(|opt_series| {
+            opt_series
+                .map(|series| {
+                    series
+                        .str()
+                        .map(|ca| {
+                            ca.into_iter()
+                                .flatten()
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        })
+                        .unwrap_or_default()
+                })
+                .unwrap_or_default()
+        })
+        .collect();
+
+    // Create result DataFrame without the Assets_List column
+    let mut result = grouped.select(["ETF", "Asset_Count"])?;
+
+    // Add the Assets column with comma-separated strings
+    let assets_series = Series::new("Assets".into(), asset_strings);
+    result.with_column(assets_series)?;
+
+    // Sort by ETF name alphabetically
+    let result = result.sort(["ETF"], SortMultipleOptions::default())?;
+
+    Ok(result)
+}
+
+/// Summarize ETF statistics
+/// Returns a string with summary statistics about ETFs
+pub fn summarize_etfs(summary_df: &DataFrame) -> Result<String> {
+    let etf_count = summary_df.height();
+
+    let asset_counts = summary_df.column("Asset_Count")?;
+    let asset_count_u32 = asset_counts.u32()?;
+
+    let counts: Vec<u32> = asset_count_u32.into_iter().flatten().collect();
+
+    let max_assets = counts.iter().max().copied().unwrap_or(0);
+    let min_assets = counts.iter().min().copied().unwrap_or(0);
+
+    let mut summary = String::new();
+    summary.push_str(&format!("Total ETFs: {}\n", etf_count));
+    summary.push_str(&format!("Largest ETF contains {} assets\n", max_assets));
+    summary.push_str(&format!("Smallest ETF contains {} assets\n", min_assets));
+
+    Ok(summary)
+}
+
 /// Get asset-to-ETF mapping
 /// Returns a DataFrame with columns: Symbol, Name, ETF_Count, ETFs
 /// Can be sorted by symbol (alphabetical) or by ETF_Count (descending) then symbol
@@ -739,5 +811,65 @@ mod tests {
         // Should have 1 unique ETF
         assert_eq!(etf_list.len(), 1);
         assert_eq!(etf_list[0], "SPY");
+    }
+
+    #[test]
+    fn test_get_etf_summary() {
+        let df = df! {
+            "ETF" => &["SPY", "SPY", "QQQ", "IWF", "IWF", "IWF"],
+            "Symbol" => &["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA", "AMD"],
+            "Name" => &["Apple", "Microsoft", "Google", "Tesla", "Nvidia", "AMD"],
+            "Weight" => &["5%", "6%", "7%", "8%", "9%", "10%"]
+        }.unwrap();
+
+        let summary = get_etf_summary(&df).unwrap();
+
+        // Should have 3 unique ETFs
+        assert_eq!(summary.height(), 3);
+
+        // Verify column order: ETF, Asset_Count, Assets
+        let columns = summary.get_column_names();
+        assert_eq!(columns, vec!["ETF", "Asset_Count", "Assets"]);
+
+        // Verify asset counts
+        let asset_counts = summary.column("Asset_Count").unwrap().u32().unwrap();
+        let counts: Vec<u32> = asset_counts.into_iter().flatten().collect();
+
+        // IWF should have 3 assets, SPY 2, QQQ 1
+        // After sorting by ETF name: IWF, QQQ, SPY
+        let etfs = summary.column("ETF").unwrap().str().unwrap();
+        let etf_vec: Vec<&str> = etfs.into_iter().flatten().collect();
+
+        let iwf_idx = etf_vec.iter().position(|&s| s == "IWF").unwrap();
+        let spy_idx = etf_vec.iter().position(|&s| s == "SPY").unwrap();
+        let qqq_idx = etf_vec.iter().position(|&s| s == "QQQ").unwrap();
+
+        assert_eq!(counts[iwf_idx], 3);
+        assert_eq!(counts[spy_idx], 2);
+        assert_eq!(counts[qqq_idx], 1);
+
+        // Verify assets column contains comma-separated symbols
+        let assets = summary.column("Assets").unwrap().str().unwrap();
+        let assets_vec: Vec<&str> = assets.into_iter().flatten().collect();
+
+        // SPY should contain both AAPL and MSFT
+        let spy_assets = assets_vec[spy_idx];
+        assert!(spy_assets.contains("AAPL"));
+        assert!(spy_assets.contains("MSFT"));
+    }
+
+    #[test]
+    fn test_summarize_etfs() {
+        let summary_df = df! {
+            "ETF" => &["SPY", "QQQ", "IWF"],
+            "Asset_Count" => &[10u32, 5u32, 15u32],
+            "Assets" => &["AAPL, MSFT, ...", "GOOGL, ...", "TSLA, ..."]
+        }.unwrap();
+
+        let summary = summarize_etfs(&summary_df).unwrap();
+
+        assert!(summary.contains("Total ETFs: 3"));
+        assert!(summary.contains("Largest ETF contains 15 assets"));
+        assert!(summary.contains("Smallest ETF contains 5 assets"));
     }
 }

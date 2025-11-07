@@ -518,3 +518,89 @@ fn test_list_function_with_filter() {
     assert!(lines.contains(&"IVW"));
     assert!(lines.contains(&"IWF"));
 }
+
+#[test]
+fn test_summary_function() {
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.arg("-d")
+        .arg("./example-data")
+        .arg("-f")
+        .arg("summary")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Total ETFs:"))
+        .stdout(predicate::str::contains("Largest ETF contains"))
+        .stdout(predicate::str::contains("Smallest ETF contains"));
+}
+
+#[test]
+fn test_summary_function_with_output() {
+    let temp_dir = TempDir::new().unwrap();
+    let output_path = temp_dir.path().join("test_summary.csv");
+
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.arg("-d")
+        .arg("./example-data")
+        .arg("-f")
+        .arg("summary")
+        .arg("-o")
+        .arg(&output_path)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("ETF summary saved to:"));
+
+    // Verify the file was created
+    assert!(output_path.exists());
+
+    // Verify column order: ETF, Asset_Count, Assets
+    let content = fs::read_to_string(&output_path).unwrap();
+    let first_line = content.lines().next().unwrap();
+    assert_eq!(first_line, "ETF,Asset_Count,Assets");
+}
+
+#[test]
+fn test_summary_function_default_extension() {
+    let temp_dir = TempDir::new().unwrap();
+    let output_path = temp_dir.path().join("test_summary");
+
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.arg("-d")
+        .arg("./example-data")
+        .arg("-f")
+        .arg("summary")
+        .arg("-o")
+        .arg(&output_path)
+        .assert()
+        .success();
+
+    // Verify the file was created with .csv extension
+    let csv_path = temp_dir.path().join("test_summary.csv");
+    assert!(csv_path.exists());
+}
+
+#[test]
+fn test_summary_function_with_filter() {
+    let temp_dir = TempDir::new().unwrap();
+    let output_path = temp_dir.path().join("test_summary_filter.csv");
+
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.arg("-d")
+        .arg("./example-data")
+        .arg("--etfs")
+        .arg("IVW,IWF")
+        .arg("-f")
+        .arg("summary")
+        .arg("-o")
+        .arg(&output_path)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Total ETFs: 2"));
+
+    // Verify the file was created
+    assert!(output_path.exists());
+
+    // Verify content contains exactly 2 ETFs (+ header)
+    let content = fs::read_to_string(&output_path).unwrap();
+    let lines: Vec<&str> = content.lines().collect();
+    assert_eq!(lines.len(), 3); // Header + 2 ETFs
+}
