@@ -58,7 +58,7 @@ etf_analyzer [OPTIONS]
   - `unique`: Show assets that appear in only one ETF
   - `overlap`: Show assets that appear in multiple ETFs (with ETF_Count column)
   - `mapping`: Show asset-to-ETF mapping with summary statistics
-  - `list`: List all ETF symbols (Coming Soon)
+  - `list`: List all ETF symbols in the DataFrame
   - `compare`: Compare specific ETFs side-by-side (Coming Soon)
 - `-o FILE` or `--output FILE`: Output file (if not specified, print to stdout)
 - `--etfs ETF1,ETF2,...`: Comma-separated list of ETF symbols to include in analysis (filters data before processing)
@@ -198,6 +198,26 @@ Asset distribution by ETF count:
   217 assets found in 1 ETF
 ```
 
+### List ETFs Output Format
+
+When using `-f list`, the output shows all unique ETF symbols in the DataFrame:
+
+**Output (stdout):**
+- Count of ETFs found
+- List of ETF symbols (sorted alphabetically), one per line
+
+**Output File (optional):**
+- Text file (.txt) with one ETF symbol per line
+- Default extension: `.txt`
+
+**Example:**
+```
+Found 3 ETFs:
+  IVW
+  IWF
+  VTV
+```
+
 ## Examples
 
 ### Load Portfolio from Directory
@@ -294,6 +314,22 @@ etf_analyzer -d ./data -f mapping -o asset_mapping.csv
 etf_analyzer -d ./data --etfs VTV,IVW,IWF -f mapping --sort-by count -o value_etf_mapping
 ```
 
+### List ETFs
+
+```bash
+# List all ETFs in the DataFrame
+etf_analyzer -d ./data -f list
+
+# Save ETF list to text file
+etf_analyzer -d ./data -f list -o etf_list.txt
+
+# Save without extension (default .txt will be added)
+etf_analyzer -d ./data -f list -o etf_list
+
+# List ETFs after filtering
+etf_analyzer -d ./data --etfs VTV,IVW,IWF -f list
+```
+
 ### Filter by ETF
 
 The `--etfs` option works with all functions to filter the analysis to specific ETFs:
@@ -317,9 +353,6 @@ etf_analyzer -d ./data --etfs VTV,VBR -f mapping
 ```bash
 # Show portfolio summary
 etf_analyzer -d ./data -f summary
-
-# List all ETF symbols
-etf_analyzer -d ./data -f list
 
 # Compare specific ETFs side-by-side
 etf_analyzer -d ./data -f compare --etfs SPY,VOO,QQQ

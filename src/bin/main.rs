@@ -199,6 +199,42 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
+    // Handle the list function
+    if args.function == "list" {
+        if args.verbose {
+            println!("Getting list of ETFs...");
+        }
+
+        let etf_list = analysis::get_etf_list(&df)?;
+
+        // Print to stdout
+        println!("Found {} ETFs:", etf_list.len());
+        for etf in &etf_list {
+            println!("  {}", etf);
+        }
+
+        // If output file is specified, save with default .txt extension if no extension provided
+        if let Some(output_path) = &args.output {
+            // Add .txt extension if no extension is present
+            let output_path_with_ext = if std::path::Path::new(output_path).extension().is_none() {
+                format!("{}.txt", output_path)
+            } else {
+                output_path.to_string()
+            };
+
+            if args.verbose {
+                println!("Saving ETF list to: {}", output_path_with_ext);
+            }
+
+            // Write ETF list to text file (one per line)
+            let content = etf_list.join("\n") + "\n";
+            std::fs::write(&output_path_with_ext, content)?;
+            println!("ETF list saved to: {}", output_path_with_ext);
+        }
+
+        return Ok(());
+    }
+
     // Extract unique ETF names from the "ETF" column
     let etf_names: Vec<String> = df
         .column("ETF")

@@ -426,3 +426,95 @@ fn test_mapping_sort_by_count() {
     // Verify descending order by count
     assert!(first_count >= last_count);
 }
+
+#[test]
+fn test_list_function() {
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.arg("-d")
+        .arg("./example-data")
+        .arg("-f")
+        .arg("list")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Found"))
+        .stdout(predicate::str::contains("ETFs:"));
+}
+
+#[test]
+fn test_list_function_with_output() {
+    let temp_dir = TempDir::new().unwrap();
+    let output_path = temp_dir.path().join("test_list.txt");
+
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.arg("-d")
+        .arg("./example-data")
+        .arg("-f")
+        .arg("list")
+        .arg("-o")
+        .arg(&output_path)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("ETF list saved to:"));
+
+    // Verify the file was created
+    assert!(output_path.exists());
+
+    // Verify the file has content (one ETF per line)
+    let content = fs::read_to_string(&output_path).unwrap();
+    let lines: Vec<&str> = content.lines().collect();
+    assert!(lines.len() > 0);
+
+    // Verify ETF names are in the file
+    assert!(content.len() > 0);
+}
+
+#[test]
+fn test_list_function_default_extension() {
+    let temp_dir = TempDir::new().unwrap();
+    let output_path = temp_dir.path().join("test_list");
+
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.arg("-d")
+        .arg("./example-data")
+        .arg("-f")
+        .arg("list")
+        .arg("-o")
+        .arg(&output_path)
+        .assert()
+        .success();
+
+    // Verify the file was created with .txt extension
+    let txt_path = temp_dir.path().join("test_list.txt");
+    assert!(txt_path.exists());
+}
+
+#[test]
+fn test_list_function_with_filter() {
+    let temp_dir = TempDir::new().unwrap();
+    let output_path = temp_dir.path().join("test_list_filter.txt");
+
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.arg("-d")
+        .arg("./example-data")
+        .arg("--etfs")
+        .arg("IVW,IWF")
+        .arg("-f")
+        .arg("list")
+        .arg("-o")
+        .arg(&output_path)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Found 2 ETFs:"));
+
+    // Verify the file was created
+    assert!(output_path.exists());
+
+    // Verify content contains exactly 2 ETFs
+    let content = fs::read_to_string(&output_path).unwrap();
+    let lines: Vec<&str> = content.lines().collect();
+    assert_eq!(lines.len(), 2);
+
+    // Verify the ETFs are IVW and IWF (sorted alphabetically)
+    assert!(lines.contains(&"IVW"));
+    assert!(lines.contains(&"IWF"));
+}

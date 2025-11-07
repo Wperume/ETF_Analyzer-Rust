@@ -293,6 +293,24 @@ pub fn get_unique_assets(df: &DataFrame) -> Result<DataFrame> {
     Ok(result)
 }
 
+/// Get list of unique ETF symbols from the DataFrame
+/// Returns a sorted vector of ETF symbols
+pub fn get_etf_list(df: &DataFrame) -> Result<Vec<String>> {
+    let etf_col = df.column("ETF")?;
+    let etf_str = etf_col.str()?;
+
+    let mut etf_set: std::collections::HashSet<String> = etf_str
+        .into_iter()
+        .flatten()
+        .map(|s| s.to_string())
+        .collect();
+
+    let mut etf_list: Vec<String> = etf_set.drain().collect();
+    etf_list.sort();
+
+    Ok(etf_list)
+}
+
 /// Get asset-to-ETF mapping
 /// Returns a DataFrame with columns: Symbol, Name, ETF_Count, ETFs
 /// Can be sorted by symbol (alphabetical) or by ETF_Count (descending) then symbol
@@ -685,5 +703,41 @@ mod tests {
         let symbol_vec: Vec<&str> = symbols.into_iter().flatten().collect();
         assert_eq!(symbol_vec[0], "AAPL");
         assert_eq!(counts[0], 3);
+    }
+
+    #[test]
+    fn test_get_etf_list() {
+        let df = df! {
+            "ETF" => &["SPY", "QQQ", "SPY", "IWF", "QQQ"],
+            "Symbol" => &["AAPL", "GOOGL", "MSFT", "TSLA", "NVDA"],
+            "Name" => &["Apple", "Google", "Microsoft", "Tesla", "Nvidia"],
+            "Weight" => &["5%", "6%", "7%", "8%", "9%"]
+        }.unwrap();
+
+        let etf_list = get_etf_list(&df).unwrap();
+
+        // Should have 3 unique ETFs
+        assert_eq!(etf_list.len(), 3);
+
+        // Should be sorted alphabetically
+        assert_eq!(etf_list[0], "IWF");
+        assert_eq!(etf_list[1], "QQQ");
+        assert_eq!(etf_list[2], "SPY");
+    }
+
+    #[test]
+    fn test_get_etf_list_single() {
+        let df = df! {
+            "ETF" => &["SPY", "SPY", "SPY"],
+            "Symbol" => &["AAPL", "GOOGL", "MSFT"],
+            "Name" => &["Apple", "Google", "Microsoft"],
+            "Weight" => &["5%", "6%", "7%"]
+        }.unwrap();
+
+        let etf_list = get_etf_list(&df).unwrap();
+
+        // Should have 1 unique ETF
+        assert_eq!(etf_list.len(), 1);
+        assert_eq!(etf_list[0], "SPY");
     }
 }
