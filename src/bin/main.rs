@@ -164,6 +164,41 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
+    // Handle the mapping function
+    if args.function == "mapping" {
+        let sort_by = analysis::AssetsSortBy::from_str(&args.sort_by);
+
+        if args.verbose {
+            println!("Creating asset-to-ETF mapping...");
+        }
+
+        let mapping_df = analysis::get_asset_mapping(&df, sort_by)?;
+
+        // Always print summary to stdout
+        let summary = analysis::summarize_assets(&mapping_df)?;
+        println!("{}", summary);
+
+        // If output file is specified, save with default .csv extension if no extension provided
+        if let Some(output_path) = &args.output {
+            // Add .csv extension if no extension is present
+            let output_path_with_ext = if std::path::Path::new(output_path).extension().is_none() {
+                format!("{}.csv", output_path)
+            } else {
+                output_path.to_string()
+            };
+
+            if args.verbose {
+                println!("Saving asset mapping to: {}", output_path_with_ext);
+            }
+            let written = io::export_dataframe(&mapping_df, &output_path_with_ext, args.force)?;
+            if written {
+                println!("Asset mapping saved to: {}", output_path_with_ext);
+            }
+        }
+
+        return Ok(());
+    }
+
     // Extract unique ETF names from the "ETF" column
     let etf_names: Vec<String> = df
         .column("ETF")

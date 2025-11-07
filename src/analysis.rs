@@ -293,6 +293,15 @@ pub fn get_unique_assets(df: &DataFrame) -> Result<DataFrame> {
     Ok(result)
 }
 
+/// Get asset-to-ETF mapping
+/// Returns a DataFrame with columns: Symbol, Name, ETF_Count, ETFs
+/// Can be sorted by symbol (alphabetical) or by ETF_Count (descending) then symbol
+pub fn get_asset_mapping(df: &DataFrame, sort_by: AssetsSortBy) -> Result<DataFrame> {
+    // This is similar to aggregate_assets but we'll keep it as a separate function
+    // for clarity and potential future customization
+    aggregate_assets(df, sort_by)
+}
+
 /// Get overlapping assets (assets that appear in more than one ETF)
 /// Returns a DataFrame with columns: Symbol, Name, ETF_Count, Weight, ETF
 /// Can be sorted by symbol (alphabetical) or by ETF_Count (descending) then symbol
@@ -613,5 +622,68 @@ mod tests {
 
         // No assets appear in multiple ETFs
         assert_eq!(overlap.height(), 0);
+    }
+
+    #[test]
+    fn test_get_asset_mapping() {
+        let df = df! {
+            "ETF" => &["SPY", "QQQ", "SPY", "IWF"],
+            "Symbol" => &["AAPL", "AAPL", "MSFT", "GOOGL"],
+            "Name" => &["Apple", "Apple", "Microsoft", "Google"],
+            "Weight" => &["5%", "6%", "7%", "8%"]
+        }.unwrap();
+
+        let mapping = get_asset_mapping(&df, AssetsSortBy::Symbol).unwrap();
+
+        // Should have 3 unique symbols
+        assert_eq!(mapping.height(), 3);
+
+        // Verify column order: Symbol, Name, ETF_Count, ETFs
+        let columns = mapping.get_column_names();
+        assert_eq!(columns, vec!["Symbol", "Name", "ETF_Count", "ETFs"]);
+
+        // Verify AAPL appears in 2 ETFs
+        let symbols = mapping.column("Symbol").unwrap().str().unwrap();
+        let etf_counts = mapping.column("ETF_Count").unwrap().u32().unwrap();
+        let etfs = mapping.column("ETFs").unwrap().str().unwrap();
+
+        let symbol_vec: Vec<&str> = symbols.into_iter().flatten().collect();
+        let count_vec: Vec<u32> = etf_counts.into_iter().flatten().collect();
+        let etfs_vec: Vec<&str> = etfs.into_iter().flatten().collect();
+
+        // Find AAPL in the results
+        let aapl_idx = symbol_vec.iter().position(|&s| s == "AAPL").unwrap();
+        assert_eq!(count_vec[aapl_idx], 2);
+        assert!(etfs_vec[aapl_idx].contains("SPY"));
+        assert!(etfs_vec[aapl_idx].contains("QQQ"));
+    }
+
+    #[test]
+    fn test_get_asset_mapping_sort_by_count() {
+        let df = df! {
+            "ETF" => &["SPY", "QQQ", "IWF", "IWF", "VTI"],
+            "Symbol" => &["AAPL", "AAPL", "AAPL", "GOOGL", "MSFT"],
+            "Name" => &["Apple", "Apple", "Apple", "Google", "Microsoft"],
+            "Weight" => &["5%", "6%", "7%", "8%", "9%"]
+        }.unwrap();
+
+        let mapping = get_asset_mapping(&df, AssetsSortBy::EtfCount).unwrap();
+
+        // Should have 3 unique symbols
+        assert_eq!(mapping.height(), 3);
+
+        // Verify sorting by ETF_Count descending
+        let etf_counts = mapping.column("ETF_Count").unwrap().u32().unwrap();
+        let counts: Vec<u32> = etf_counts.into_iter().flatten().collect();
+
+        // Verify descending order
+        assert!(counts[0] >= counts[1]);
+        assert!(counts[1] >= counts[2]);
+
+        // AAPL appears in 3 unique ETFs (SPY, QQQ, IWF), should be first
+        let symbols = mapping.column("Symbol").unwrap().str().unwrap();
+        let symbol_vec: Vec<&str> = symbols.into_iter().flatten().collect();
+        assert_eq!(symbol_vec[0], "AAPL");
+        assert_eq!(counts[0], 3);
     }
 }

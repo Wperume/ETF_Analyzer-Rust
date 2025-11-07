@@ -57,12 +57,12 @@ etf_analyzer [OPTIONS]
   - `assets`: Show all assets with ETF associations and aggregated ETF counts
   - `unique`: Show assets that appear in only one ETF
   - `overlap`: Show assets that appear in multiple ETFs (with ETF_Count column)
+  - `mapping`: Show asset-to-ETF mapping with summary statistics
   - `list`: List all ETF symbols (Coming Soon)
   - `compare`: Compare specific ETFs side-by-side (Coming Soon)
-  - `mapping`: Show asset-to-ETF mapping (Coming Soon)
 - `-o FILE` or `--output FILE`: Output file (if not specified, print to stdout)
 - `--etfs ETF1,ETF2,...`: Comma-separated list of ETF symbols to include in analysis (filters data before processing)
-- `--sort-by {symbol,count}`: Sort order for assets and overlap functions - 'symbol' (alphabetical, default) or 'count' (by ETF count descending)
+- `--sort-by {symbol,count}`: Sort order for assets, overlap, and mapping functions - 'symbol' (alphabetical, default) or 'count' (by ETF count descending)
 - `--symbol-col COLUMN`: Column name for asset symbol (default: Symbol)
 - `--name-col COLUMN`: Column name for asset name (default: Name)
 - `--weight-col COLUMN`: Column name for weight/percentage (default: % Weight)
@@ -170,6 +170,34 @@ When using `-f overlap`, the output contains assets that appear in multiple ETFs
 Found 53 overlapping assets (appear in multiple ETFs)
 ```
 
+### Asset Mapping Output Format
+
+When using `-f mapping`, the output shows the complete asset-to-ETF mapping:
+
+**Columns:**
+- `Symbol`: Asset ticker symbol
+- `Name`: Asset name
+- `ETF_Count`: Number of ETFs containing this asset
+- `ETFs`: Comma-separated list of ETF symbols containing this asset
+
+**Sorting:**
+- `--sort-by symbol` (default): Alphabetical by asset symbol
+- `--sort-by count`: Descending by ETF_Count, then alphabetical by symbol
+
+**Summary Output (stdout):**
+- Total number of unique assets
+- Distribution showing how many assets appear in N ETFs
+
+**Example:**
+```
+Total assets: 243
+
+Asset distribution by ETF count:
+  1 asset found in 3 ETFs
+  25 assets found in 2 ETFs
+  217 assets found in 1 ETF
+```
+
 ## Examples
 
 ### Load Portfolio from Directory
@@ -250,6 +278,22 @@ etf_analyzer -d ./data -f overlap --sort-by count -o overlaps.csv
 etf_analyzer -d ./data --etfs VTV,IVW,IWF -f overlap -o overlap_value_etfs
 ```
 
+### Asset-to-ETF Mapping
+
+```bash
+# Show complete asset-to-ETF mapping with summary
+etf_analyzer -d ./data -f mapping
+
+# Sort by ETF count (assets in most ETFs first)
+etf_analyzer -d ./data -f mapping --sort-by count
+
+# Save to CSV
+etf_analyzer -d ./data -f mapping -o asset_mapping.csv
+
+# Map assets for specific ETFs only
+etf_analyzer -d ./data --etfs VTV,IVW,IWF -f mapping --sort-by count -o value_etf_mapping
+```
+
 ### Filter by ETF
 
 The `--etfs` option works with all functions to filter the analysis to specific ETFs:
@@ -263,6 +307,9 @@ etf_analyzer -d ./data --etfs CORN,GLDM -f assets
 
 # Find overlaps between specific ETFs
 etf_analyzer -d ./data --etfs IVW,IWF,VTV -f overlap --sort-by count
+
+# Map assets for specific ETFs
+etf_analyzer -d ./data --etfs VTV,VBR -f mapping
 ```
 
 ### Other Analysis Functions (Coming Soon)

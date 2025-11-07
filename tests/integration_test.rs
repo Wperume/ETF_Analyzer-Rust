@@ -331,3 +331,98 @@ fn test_overlap_sort_by_count() {
     // Verify descending order by count
     assert!(first_count >= last_count);
 }
+
+#[test]
+fn test_mapping_function() {
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.arg("-d")
+        .arg("./example-data")
+        .arg("-f")
+        .arg("mapping")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Total assets:"))
+        .stdout(predicate::str::contains("Asset distribution by ETF count:"));
+}
+
+#[test]
+fn test_mapping_function_with_output() {
+    let temp_dir = TempDir::new().unwrap();
+    let output_path = temp_dir.path().join("test_mapping.csv");
+
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.arg("-d")
+        .arg("./example-data")
+        .arg("-f")
+        .arg("mapping")
+        .arg("-o")
+        .arg(&output_path)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Asset mapping saved to:"));
+
+    // Verify the file was created
+    assert!(output_path.exists());
+
+    // Verify column order: Symbol, Name, ETF_Count, ETFs
+    let content = fs::read_to_string(&output_path).unwrap();
+    let first_line = content.lines().next().unwrap();
+    assert_eq!(first_line, "Symbol,Name,ETF_Count,ETFs");
+}
+
+#[test]
+fn test_mapping_function_default_extension() {
+    let temp_dir = TempDir::new().unwrap();
+    let output_path = temp_dir.path().join("test_mapping");
+
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.arg("-d")
+        .arg("./example-data")
+        .arg("-f")
+        .arg("mapping")
+        .arg("-o")
+        .arg(&output_path)
+        .assert()
+        .success();
+
+    // Verify the file was created with .csv extension
+    let csv_path = temp_dir.path().join("test_mapping.csv");
+    assert!(csv_path.exists());
+}
+
+#[test]
+fn test_mapping_sort_by_count() {
+    let temp_dir = TempDir::new().unwrap();
+    let output_path = temp_dir.path().join("test_mapping_count.csv");
+
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.arg("-d")
+        .arg("./example-data")
+        .arg("-f")
+        .arg("mapping")
+        .arg("--sort-by")
+        .arg("count")
+        .arg("-o")
+        .arg(&output_path)
+        .assert()
+        .success();
+
+    // Verify the file was created
+    assert!(output_path.exists());
+
+    // Read the file and verify sorting (first data row should have highest count)
+    let content = fs::read_to_string(&output_path).unwrap();
+    let lines: Vec<&str> = content.lines().collect();
+    assert!(lines.len() > 2); // Header + at least 2 data rows
+
+    // Parse second line (first data row) to get ETF_Count
+    let first_data = lines[1].split(',').collect::<Vec<&str>>();
+    let first_count: u32 = first_data[2].parse().unwrap();
+
+    // Parse last line to get ETF_Count
+    let last_data = lines[lines.len() - 1].split(',').collect::<Vec<&str>>();
+    let last_count: u32 = last_data[2].parse().unwrap();
+
+    // Verify descending order by count
+    assert!(first_count >= last_count);
+}
