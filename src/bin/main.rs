@@ -100,6 +100,37 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
+    // Handle the unique function
+    if args.function == "unique" {
+        if args.verbose {
+            println!("Finding unique assets (appear in only one ETF)...");
+        }
+
+        let unique_df = analysis::get_unique_assets(&df)?;
+
+        println!("Found {} unique assets (appear in only one ETF)", unique_df.height());
+
+        // If output file is specified, save with default .csv extension if no extension provided
+        if let Some(output_path) = &args.output {
+            // Add .csv extension if no extension is present
+            let output_path_with_ext = if std::path::Path::new(output_path).extension().is_none() {
+                format!("{}.csv", output_path)
+            } else {
+                output_path.to_string()
+            };
+
+            if args.verbose {
+                println!("Saving unique assets to: {}", output_path_with_ext);
+            }
+            let written = io::export_dataframe(&unique_df, &output_path_with_ext, args.force)?;
+            if written {
+                println!("Unique assets saved to: {}", output_path_with_ext);
+            }
+        }
+
+        return Ok(());
+    }
+
     // Extract unique ETF names from the "ETF" column
     let etf_names: Vec<String> = df
         .column("ETF")

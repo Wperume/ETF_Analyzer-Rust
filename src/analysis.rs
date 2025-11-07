@@ -243,6 +243,56 @@ pub fn summarize_assets(df: &DataFrame) -> Result<String> {
     Ok(summary)
 }
 
+/// Get unique assets (assets that appear in only one ETF)
+/// Returns a DataFrame with columns: Symbol, Name, Weight, ETF
+pub fn get_unique_assets(df: &DataFrame) -> Result<DataFrame> {
+    // Group by Symbol to get ETF count
+    let grouped = df
+        .clone()
+        .lazy()
+        .group_by([col("Symbol")])
+        .agg([
+            col("ETF").n_unique().alias("ETF_Count"),
+        ])
+        .collect()?;
+
+    // Filter for assets that appear in only one ETF
+    let unique_symbols = grouped
+        .clone()
+        .lazy()
+        .filter(col("ETF_Count").eq(lit(1u32)))
+        .select([col("Symbol")])
+        .collect()?;
+
+    // Get the list of unique symbols
+    let symbol_col = unique_symbols.column("Symbol")?;
+    let symbol_str = symbol_col.str()?;
+    let unique_symbol_set: std::collections::HashSet<String> = symbol_str
+        .into_iter()
+        .flatten()
+        .map(|s| s.to_string())
+        .collect();
+
+    // Filter original DataFrame to only include unique symbols
+    let df_symbol_col = df.column("Symbol")?;
+    let df_symbol_str = df_symbol_col.str()?;
+
+    let mask = BooleanChunked::from_iter(
+        df_symbol_str
+            .into_iter()
+            .map(|opt_str| {
+                opt_str.map_or(false, |s| unique_symbol_set.contains(s))
+            })
+    );
+
+    let result = df.filter(&mask)?;
+
+    // Reorder columns to have ETF last: Symbol, Name, Weight, ETF
+    let result = result.select(["Symbol", "Name", "Weight", "ETF"])?;
+
+    Ok(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
