@@ -23,6 +23,14 @@ pub struct Args {
     #[arg(long)]
     pub force: bool,
 
+    /// Sort order for assets function: 'symbol' (alphabetical) or 'count' (by ETF count)
+    #[arg(long, default_value = "symbol")]
+    pub sort_by: String,
+
+    /// Comma-separated list of ETF symbols to include in analysis (e.g., VTI,VOO,SPY)
+    #[arg(long, value_delimiter = ',')]
+    pub etfs: Option<Vec<String>>,
+
     /// Verbose mode
     #[arg(short, long)]
     pub verbose: bool,

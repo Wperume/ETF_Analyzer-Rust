@@ -1,4 +1,4 @@
-use etf_analyzer::{cli, io, portfolio, report, Result};
+use etf_analyzer::{analysis, cli, io, portfolio, report, Result};
 
 fn main() -> Result<()> {
     let args = cli::parse_args();
@@ -15,7 +15,7 @@ fn main() -> Result<()> {
     }
 
     // Load DataFrame from either import file or data directory
-    let df = if let Some(import_path) = &args.import {
+    let mut df = if let Some(import_path) = &args.import {
         if args.verbose {
             println!("Importing DataFrame from: {}", import_path);
         }
@@ -28,6 +28,24 @@ fn main() -> Result<()> {
     } else {
         unreachable!("Either data_dir or import must be Some");
     };
+
+    // Apply ETF filter if specified
+    if let Some(etf_list) = &args.etfs {
+        if args.verbose {
+            println!("Filtering to ETFs: {}", etf_list.join(", "));
+        }
+        df = analysis::filter_etfs(&df, etf_list)?;
+
+        if args.verbose {
+            println!("Filtered DataFrame contains {} rows", df.height());
+        }
+
+        if df.height() == 0 {
+            return Err(etf_analyzer::Error::Other(
+                "No data found for the specified ETFs. Check that ETF symbols are correct.".to_string()
+            ));
+        }
+    }
 
     // Handle the export function
     if args.function == "export" {
@@ -44,6 +62,34 @@ fn main() -> Result<()> {
                 "Export function requires --output (-o) to be specified".to_string()
             ));
         }
+        return Ok(());
+    }
+
+    // Handle the assets function
+    if args.function == "assets" {
+        let sort_by = analysis::AssetsSortBy::from_str(&args.sort_by);
+
+        if args.verbose {
+            println!("Aggregating assets by symbol...");
+        }
+
+        let assets_df = analysis::aggregate_assets(&df, sort_by)?;
+
+        // Always print summary to stdout
+        let summary = analysis::summarize_assets(&assets_df)?;
+        println!("{}", summary);
+
+        // If output file is specified, save as CSV
+        if let Some(output_path) = &args.output {
+            if args.verbose {
+                println!("Saving assets to: {}", output_path);
+            }
+            let written = io::export_dataframe(&assets_df, output_path, args.force)?;
+            if written {
+                println!("Assets saved to: {}", output_path);
+            }
+        }
+
         return Ok(());
     }
 

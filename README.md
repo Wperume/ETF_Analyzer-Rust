@@ -61,11 +61,12 @@ etf_analyzer [OPTIONS]
   - `mapping`: Show asset-to-ETF mapping
   - `export`: Export DataFrame to file (requires `-o`)
 - `-o FILE` or `--output FILE`: Output file (if not specified, print to stdout)
+- `--etfs ETF1,ETF2,...`: Comma-separated list of ETF symbols to include in analysis (filters data before processing)
+- `--sort-by {symbol,count}`: Sort order for assets function - 'symbol' (alphabetical, default) or 'count' (by ETF count)
 - `--symbol-col COLUMN`: Column name for asset symbol (default: Symbol)
 - `--name-col COLUMN`: Column name for asset name (default: Name)
 - `--weight-col COLUMN`: Column name for weight/percentage (default: % Weight)
 - `--shares-col COLUMN`: Column name for shares (default: Shares)
-- `--etfs ETF1,ETF2,...`: Comma-separated list of ETF symbols to compare (for compare function)
 - `--sort-assets {weight,alpha}`: Sort assets by weight (default) or alphabetically (for summary and compare functions)
 - `--sort-etfs {weight,alpha}`: Sort ETFs by asset weight (default) or alphabetically (for overlap function)
 - `--force`: Force overwrite of existing output files without prompting
@@ -79,13 +80,13 @@ etf_analyzer [OPTIONS]
 - Only specify the column overrides you need; others will use defaults
 - **File Overwrite Protection**: If the output file exists, you'll be prompted to confirm overwrite. Use `--force` to skip the prompt for automated scripts.
 
-## CSV File Format
+## File Formats
 
-### ETF Holdings Files
+### ETF Holdings Files (Input)
 
 ETF holdings files should follow the naming pattern: `{etf_name}-etf-holdings.csv`
 
-Expected columns:
+**Expected columns:**
 - `No.`: Index/row number
 - `Symbol`: Asset ticker symbol (can be empty/null/"n/a" - will be auto-generated)
 - `Name`: Asset name
@@ -93,14 +94,38 @@ Expected columns:
 - `% Weight`: Percentage weight in the ETF
 - `Shares`: Number of shares held
 
-Example: `spy-etf-holdings.csv`, `voo-etf-holdings.csv`
+**Example:** `spy-etf-holdings.csv`, `voo-etf-holdings.csv`
 
-The tool will:
+**The tool will:**
 - Extract the ETF name from the filename
 - Synthesize Symbol values for empty/null/n/a entries using format: `{ETF}-{No.}`
 - Rename `% Weight` to `Weight`
 - Add an `ETF` column with the ETF name
 - Reorder columns so `ETF` is first
+
+### Assets Output Format
+
+When using `-f assets`, the output contains:
+
+**Columns:**
+- `Symbol`: Asset ticker symbol
+- `Name`: Asset name
+- `ETF_Count`: Number of ETFs containing this asset
+- `ETFs`: Comma-separated list of ETF symbols containing this asset
+
+**Summary Output (stdout):**
+- Total number of unique assets
+- Distribution showing how many assets appear in N ETFs
+
+**Example:**
+```
+Total assets: 659
+
+Asset distribution by ETF count:
+  41 assets found in 3 ETFs
+  191 assets found in 2 ETFs
+  427 assets found in 1 ETF
+```
 
 ## Examples
 
@@ -134,7 +159,38 @@ etf_analyzer -i portfolio.parquet -v
 etf_analyzer -i portfolio.parquet -f export -o portfolio.csv
 ```
 
-### Analyze Portfolio (Coming Soon)
+### Analyze Assets
+
+```bash
+# Show all assets with ETF associations (sorted alphabetically)
+etf_analyzer -d ./data -f assets
+
+# Sort by ETF count (assets appearing in most ETFs first)
+etf_analyzer -d ./data -f assets --sort-by count
+
+# Filter to specific ETFs and analyze their assets
+etf_analyzer -d ./data -f assets --etfs VTV,IVW,IWF
+
+# Save results to CSV
+etf_analyzer -d ./data -f assets --sort-by count -o assets.csv
+
+# Complete example with filtering and verbose output
+etf_analyzer -d ./data -f assets --etfs VTV,IVW --sort-by count -o filtered-assets.csv --verbose
+```
+
+### Filter by ETF
+
+The `--etfs` option works with all functions to filter the analysis to specific ETFs:
+
+```bash
+# Export only specific ETFs
+etf_analyzer -d ./data --etfs VTI,VOO,SPY -f export -o filtered.parquet
+
+# Analyze assets in specific ETFs
+etf_analyzer -d ./data --etfs CORN,GLDM -f assets
+```
+
+### Other Analysis Functions (Coming Soon)
 
 ```bash
 # Show portfolio summary
@@ -143,22 +199,19 @@ etf_analyzer -d ./data -f summary
 # List all ETF symbols
 etf_analyzer -d ./data -f list
 
-# Show all assets
-etf_analyzer -d ./data -f assets
-
 # Show unique assets (appear in only one ETF)
 etf_analyzer -d ./data -f unique
 
 # Show overlapping assets (appear in multiple ETFs)
 etf_analyzer -d ./data -f overlap
 
-# Compare specific ETFs
+# Compare specific ETFs side-by-side
 etf_analyzer -d ./data -f compare --etfs SPY,VOO,QQQ
 ```
 
-## File Formats
+### Export File Formats
 
-### Parquet
+#### Parquet
 
 Parquet is a columnar storage format that offers:
 - Better compression (smaller file sizes)
@@ -166,7 +219,7 @@ Parquet is a columnar storage format that offers:
 - Type preservation (no string conversions)
 - Default format when no file extension is provided
 
-### CSV
+#### CSV
 
 CSV (Comma-Separated Values) offers:
 - Human-readable format
