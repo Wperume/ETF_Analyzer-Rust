@@ -82,6 +82,27 @@ etf_analyzer [OPTIONS]
 
 ## File Formats
 
+### Summary Output Format
+
+When using `-f summary`, the output shows ETF-level statistics:
+
+**Columns:**
+- `ETF`: ETF symbol
+- `Asset_Count`: Number of assets in the ETF
+- `Assets`: Comma-separated list of all asset symbols in the ETF
+
+**Summary Output (stdout):**
+- Total number of ETFs
+- Largest ETF asset count
+- Smallest ETF asset count
+
+**Example:**
+```
+Total ETFs: 6
+Largest ETF contains 503 assets
+Smallest ETF contains 25 assets
+```
+
 ### ETF Holdings Files (Input)
 
 ETF holdings files should follow the naming pattern: `{etf_name}-etf-holdings.csv`
@@ -250,6 +271,22 @@ etf_analyzer -i portfolio.parquet -v
 etf_analyzer -i portfolio.parquet -f export -o portfolio.csv
 ```
 
+### ETF Summary
+
+```bash
+# Show summary of all ETFs
+etf_analyzer -d ./data -f summary
+
+# Save ETF summary to CSV
+etf_analyzer -d ./data -f summary -o etf_summary.csv
+
+# Save without extension (default .csv will be added)
+etf_analyzer -d ./data -f summary -o etf_summary
+
+# Summary for specific ETFs only
+etf_analyzer -d ./data --etfs VTV,IVW,IWF -f summary
+```
+
 ### Analyze Assets
 
 ```bash
@@ -351,9 +388,6 @@ etf_analyzer -d ./data --etfs VTV,VBR -f mapping
 ### Other Analysis Functions (Coming Soon)
 
 ```bash
-# Show portfolio summary
-etf_analyzer -d ./data -f summary
-
 # Compare specific ETFs side-by-side
 etf_analyzer -d ./data -f compare --etfs SPY,VOO,QQQ
 ```
