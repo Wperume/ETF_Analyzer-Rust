@@ -79,14 +79,21 @@ fn main() -> Result<()> {
         let summary = analysis::summarize_assets(&assets_df)?;
         println!("{}", summary);
 
-        // If output file is specified, save as CSV
+        // If output file is specified, save with default .csv extension if no extension provided
         if let Some(output_path) = &args.output {
+            // Add .csv extension if no extension is present
+            let output_path_with_ext = if std::path::Path::new(output_path).extension().is_none() {
+                format!("{}.csv", output_path)
+            } else {
+                output_path.to_string()
+            };
+
             if args.verbose {
-                println!("Saving assets to: {}", output_path);
+                println!("Saving assets to: {}", output_path_with_ext);
             }
-            let written = io::export_dataframe(&assets_df, output_path, args.force)?;
+            let written = io::export_dataframe(&assets_df, &output_path_with_ext, args.force)?;
             if written {
-                println!("Assets saved to: {}", output_path);
+                println!("Assets saved to: {}", output_path_with_ext);
             }
         }
 
