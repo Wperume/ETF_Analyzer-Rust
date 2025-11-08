@@ -1,4 +1,5 @@
 use polars::prelude::*;
+use rayon::prelude::*;
 use crate::Result;
 
 /// Portfolio configuration and state
@@ -92,20 +93,31 @@ pub fn calculate_correlation(df: &DataFrame, columns: &[&str]) -> Result<Vec<Vec
     let n = columns.len();
     let mut corr_matrix = vec![vec![0.0; n]; n];
 
-    for (i, col1) in columns.iter().enumerate() {
-        for (j, col2) in columns.iter().enumerate() {
-            if i == j {
-                corr_matrix[i][j] = 1.0;
-            } else if i < j {
-                let series1 = df.column(col1)?.f64()?;
-                let series2 = df.column(col2)?.f64()?;
+    // Set diagonal to 1.0 (correlation of a series with itself)
+    for i in 0..n {
+        corr_matrix[i][i] = 1.0;
+    }
 
-                // Simple Pearson correlation
-                let corr = pearson_correlation(&series1, &series2)?;
-                corr_matrix[i][j] = corr;
-                corr_matrix[j][i] = corr;
-            }
-        }
+    // Generate all unique pairs (i, j) where i < j
+    let pairs: Vec<(usize, usize)> = (0..n)
+        .flat_map(|i| ((i + 1)..n).map(move |j| (i, j)))
+        .collect();
+
+    // Calculate correlations in parallel
+    let results: Vec<((usize, usize), f64)> = pairs
+        .par_iter()
+        .map(|(i, j)| {
+            let series1 = df.column(columns[*i]).unwrap().f64().unwrap();
+            let series2 = df.column(columns[*j]).unwrap().f64().unwrap();
+            let corr = pearson_correlation(&series1, &series2).unwrap_or(0.0);
+            ((*i, *j), corr)
+        })
+        .collect();
+
+    // Populate the correlation matrix (both upper and lower triangles)
+    for ((i, j), corr) in results {
+        corr_matrix[i][j] = corr;
+        corr_matrix[j][i] = corr;
     }
 
     Ok(corr_matrix)
@@ -168,5 +180,90 @@ mod tests {
         let returns = vec![0.10, 0.20];
         let portfolio_return = portfolio.calculate_portfolio_return(&returns).unwrap();
         assert!((portfolio_return - 0.15).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_correlation_matrix_parallel() {
+        // Create a simple DataFrame with 3 columns for testing
+        let col1 = Column::new("A".into(), &[1.0, 2.0, 3.0, 4.0, 5.0]);
+        let col2 = Column::new("B".into(), &[2.0, 4.0, 6.0, 8.0, 10.0]); // Perfect positive correlation with A
+        let col3 = Column::new("C".into(), &[5.0, 4.0, 3.0, 2.0, 1.0]); // Perfect negative correlation with A
+
+        let df = DataFrame::new(vec![col1, col2, col3]).unwrap();
+        let columns = vec!["A", "B", "C"];
+
+        let corr_matrix = calculate_correlation(&df, &columns).unwrap();
+
+        // Verify matrix dimensions
+        assert_eq!(corr_matrix.len(), 3);
+        assert_eq!(corr_matrix[0].len(), 3);
+
+        // Verify diagonal is all 1.0
+        assert!((corr_matrix[0][0] - 1.0).abs() < 1e-10);
+        assert!((corr_matrix[1][1] - 1.0).abs() < 1e-10);
+        assert!((corr_matrix[2][2] - 1.0).abs() < 1e-10);
+
+        // Verify symmetry
+        assert!((corr_matrix[0][1] - corr_matrix[1][0]).abs() < 1e-10);
+        assert!((corr_matrix[0][2] - corr_matrix[2][0]).abs() < 1e-10);
+        assert!((corr_matrix[1][2] - corr_matrix[2][1]).abs() < 1e-10);
+
+        // Verify A and B have perfect positive correlation (~1.0)
+        assert!((corr_matrix[0][1] - 1.0).abs() < 1e-10);
+
+        // Verify A and C have perfect negative correlation (~-1.0)
+        assert!((corr_matrix[0][2] + 1.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_correlation_matrix_larger() {
+        // Test with more columns to verify parallel execution
+        let data: Vec<Column> = (0..10)
+            .map(|i| {
+                let values: Vec<f64> = (0..100).map(|j| (j as f64) * (i as f64 + 1.0)).collect();
+                Column::new(format!("col_{}", i).into(), &values)
+            })
+            .collect();
+
+        let df = DataFrame::new(data).unwrap();
+        let columns: Vec<&str> = (0..10).map(|i| match i {
+            0 => "col_0",
+            1 => "col_1",
+            2 => "col_2",
+            3 => "col_3",
+            4 => "col_4",
+            5 => "col_5",
+            6 => "col_6",
+            7 => "col_7",
+            8 => "col_8",
+            9 => "col_9",
+            _ => unreachable!(),
+        }).collect();
+
+        let corr_matrix = calculate_correlation(&df, &columns).unwrap();
+
+        // Verify matrix dimensions (10x10 = 45 unique pairs)
+        assert_eq!(corr_matrix.len(), 10);
+
+        // Verify all diagonals are 1.0
+        for i in 0..10 {
+            assert!((corr_matrix[i][i] - 1.0).abs() < 1e-10);
+        }
+
+        // Verify symmetry for all pairs
+        for i in 0..10 {
+            for j in 0..10 {
+                assert!((corr_matrix[i][j] - corr_matrix[j][i]).abs() < 1e-10);
+            }
+        }
+
+        // All columns should have perfect positive correlation since they're linear multiples
+        for i in 0..10 {
+            for j in 0..10 {
+                if i != j {
+                    assert!((corr_matrix[i][j] - 1.0).abs() < 1e-10);
+                }
+            }
+        }
     }
 }

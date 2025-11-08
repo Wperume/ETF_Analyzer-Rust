@@ -19,10 +19,15 @@ toml = "0.8"
 assert_cmd = "2.0"
 predicates = "3.0"
 tempfile = "3.13"
+criterion = "0.5"
 
 [[bin]]
 name = "etf_analyzer"
 path = "src/bin/main.rs"
+
+[[bench]]
+name = "correlation_benchmark"
+harness = false
 
 [profile.release]
 opt-level = 3
