@@ -792,3 +792,271 @@ fn test_column_override_verbose_output() {
         .stdout(predicate::str::contains("Using custom column configuration"))
         .stdout(predicate::str::contains("Symbol column: Ticker"));
 }
+
+#[test]
+fn test_config_file_loads_data_dir() {
+    let temp_dir = TempDir::new().unwrap();
+
+    // Create example-data directory structure in temp dir
+    let data_dir = temp_dir.path().join("test_data");
+    fs::create_dir(&data_dir).unwrap();
+    let test_file = data_dir.join("test-etf-holdings.csv");
+    fs::write(&test_file, "Symbol,Name,% Weight,Shares,No.\nAAPL,Apple Inc.,10%,100,1\n").unwrap();
+
+    // Create config file in temp directory
+    let config_file = temp_dir.path().join(".etf_analyzer.toml");
+    fs::write(&config_file, format!("data_dir = \"{}\"", data_dir.display())).unwrap();
+
+    // Run from temp directory so config is loaded
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("-f")
+        .arg("list")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Found 1 ETFs"));
+}
+
+#[test]
+fn test_config_file_verbose_output() {
+    let temp_dir = TempDir::new().unwrap();
+
+    // Create example-data directory structure in temp dir
+    let data_dir = temp_dir.path().join("test_data");
+    fs::create_dir(&data_dir).unwrap();
+    let test_file = data_dir.join("test-etf-holdings.csv");
+    fs::write(&test_file, "Symbol,Name,% Weight,Shares,No.\nAAPL,Apple Inc.,10%,100,1\n").unwrap();
+
+    // Create config file with verbose = true
+    let config_file = temp_dir.path().join(".etf_analyzer.toml");
+    fs::write(&config_file, format!("data_dir = \"{}\"\nverbose = true", data_dir.display())).unwrap();
+
+    // Run from temp directory
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("-f")
+        .arg("list")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("ETF Analyzer starting..."))
+        .stdout(predicate::str::contains("Loading portfolio from directory"));
+}
+
+#[test]
+fn test_config_file_cli_overrides() {
+    let temp_dir = TempDir::new().unwrap();
+
+    // Create two data directories
+    let config_data = temp_dir.path().join("config_data");
+    fs::create_dir(&config_data).unwrap();
+    let config_file_path = config_data.join("config-etf-holdings.csv");
+    fs::write(&config_file_path, "Symbol,Name,% Weight,Shares,No.\nAAPL,Apple Inc.,10%,100,1\n").unwrap();
+
+    let cli_data = temp_dir.path().join("cli_data");
+    fs::create_dir(&cli_data).unwrap();
+    let cli_file_path = cli_data.join("cli-etf-holdings.csv");
+    fs::write(&cli_file_path, "Symbol,Name,% Weight,Shares,No.\nMSFT,Microsoft,10%,100,1\nGOOG,Google,10%,100,2\n").unwrap();
+
+    // Create config file pointing to config_data
+    let config_file = temp_dir.path().join(".etf_analyzer.toml");
+    fs::write(&config_file, format!("data_dir = \"{}\"", config_data.display())).unwrap();
+
+    // Run from temp directory but override data_dir with CLI arg
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("-d")
+        .arg(&cli_data)
+        .arg("-f")
+        .arg("assets")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Total assets: 2")); // cli_data has 2 assets, not 1
+}
+
+#[test]
+fn test_config_file_function_default() {
+    let temp_dir = TempDir::new().unwrap();
+
+    // Create data directory
+    let data_dir = temp_dir.path().join("test_data");
+    fs::create_dir(&data_dir).unwrap();
+    let test_file = data_dir.join("test-etf-holdings.csv");
+    fs::write(&test_file, "Symbol,Name,% Weight,Shares,No.\nAAPL,Apple Inc.,10%,100,1\n").unwrap();
+
+    // Create config file with function = "list"
+    let config_file = temp_dir.path().join(".etf_analyzer.toml");
+    fs::write(&config_file, format!("data_dir = \"{}\"\nfunction = \"list\"", data_dir.display())).unwrap();
+
+    // Run without specifying function (should use config default)
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Found 1 ETFs"));
+}
+
+#[test]
+fn test_config_file_sort_by() {
+    let temp_dir = TempDir::new().unwrap();
+
+    // Create data directory with multiple files
+    let data_dir = temp_dir.path().join("test_data");
+    fs::create_dir(&data_dir).unwrap();
+
+    let file1 = data_dir.join("etf1-etf-holdings.csv");
+    fs::write(&file1, "Symbol,Name,% Weight,Shares,No.\nAAPL,Apple Inc.,10%,100,1\n").unwrap();
+
+    let file2 = data_dir.join("etf2-etf-holdings.csv");
+    fs::write(&file2, "Symbol,Name,% Weight,Shares,No.\nAAPL,Apple Inc.,10%,100,1\nMSFT,Microsoft,10%,100,2\n").unwrap();
+
+    let output_path = temp_dir.path().join("output.csv");
+
+    // Create config file with sort_by = "count"
+    let config_file = temp_dir.path().join(".etf_analyzer.toml");
+    fs::write(&config_file, format!("data_dir = \"{}\"\nsort_by = \"count\"", data_dir.display())).unwrap();
+
+    // Run assets function (should sort by count from config)
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("-f")
+        .arg("assets")
+        .arg("-o")
+        .arg(&output_path)
+        .assert()
+        .success();
+
+    // Verify sorting: AAPL should be first (appears in 2 ETFs)
+    let content = fs::read_to_string(&output_path).unwrap();
+    let lines: Vec<&str> = content.lines().collect();
+    assert!(lines[1].starts_with("AAPL")); // First data row should be AAPL
+}
+
+#[test]
+fn test_config_file_column_overrides() {
+    let temp_dir = TempDir::new().unwrap();
+
+    // Create data directory with custom column names
+    let data_dir = temp_dir.path().join("test_data");
+    fs::create_dir(&data_dir).unwrap();
+    let test_file = data_dir.join("test-etf-holdings.csv");
+    fs::write(&test_file, "Ticker,CompanyName,Weighting,Holdings,RowNum\nAAPL,Apple Inc.,10%,100,1\nMSFT,Microsoft,8%,80,2\n").unwrap();
+
+    // Create config file with column overrides
+    let config_file = temp_dir.path().join(".etf_analyzer.toml");
+    let config_content = format!(
+        "data_dir = \"{}\"\n\n[columns]\nsymbol_col = \"Ticker\"\nname_col = \"CompanyName\"\nweight_col = \"Weighting\"\nshares_col = \"Holdings\"\nnumber_col = \"RowNum\"",
+        data_dir.display()
+    );
+    fs::write(&config_file, config_content).unwrap();
+
+    // Run from temp directory
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("-f")
+        .arg("assets")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Total assets: 2"));
+}
+
+#[test]
+fn test_config_file_column_overrides_cli_priority() {
+    let temp_dir = TempDir::new().unwrap();
+
+    // Create data directory with custom column names
+    let data_dir = temp_dir.path().join("test_data");
+    fs::create_dir(&data_dir).unwrap();
+    let test_file = data_dir.join("test-etf-holdings.csv");
+    fs::write(&test_file, "CLICol,CompanyName,Weighting,Holdings,RowNum\nAAPL,Apple Inc.,10%,100,1\n").unwrap();
+
+    // Create config file with different symbol column name
+    let config_file = temp_dir.path().join(".etf_analyzer.toml");
+    let config_content = format!(
+        "data_dir = \"{}\"\n\n[columns]\nsymbol_col = \"ConfigCol\"\nname_col = \"CompanyName\"\nweight_col = \"Weighting\"",
+        data_dir.display()
+    );
+    fs::write(&config_file, config_content).unwrap();
+
+    // Run with CLI override for symbol_col (should use CLICol, not ConfigCol)
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("--symbol-col")
+        .arg("CLICol")
+        .arg("--name-col")
+        .arg("CompanyName")
+        .arg("--weight-col")
+        .arg("Weighting")
+        .arg("--number-col")
+        .arg("RowNum")
+        .arg("-f")
+        .arg("list")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Found 1 ETFs"));
+}
+
+#[test]
+fn test_config_file_etf_filter() {
+    let temp_dir = TempDir::new().unwrap();
+
+    // Create data directory with multiple ETF files
+    let data_dir = temp_dir.path().join("test_data");
+    fs::create_dir(&data_dir).unwrap();
+
+    let file1 = data_dir.join("vti-etf-holdings.csv");
+    fs::write(&file1, "Symbol,Name,% Weight,Shares,No.\nAAPL,Apple Inc.,10%,100,1\n").unwrap();
+
+    let file2 = data_dir.join("voo-etf-holdings.csv");
+    fs::write(&file2, "Symbol,Name,% Weight,Shares,No.\nMSFT,Microsoft,10%,100,1\n").unwrap();
+
+    let file3 = data_dir.join("spy-etf-holdings.csv");
+    fs::write(&file3, "Symbol,Name,% Weight,Shares,No.\nGOOG,Google,10%,100,1\n").unwrap();
+
+    // Create config file with ETF filter
+    let config_file = temp_dir.path().join(".etf_analyzer.toml");
+    fs::write(&config_file, format!("data_dir = \"{}\"\netfs = [\"VTI\", \"VOO\"]", data_dir.display())).unwrap();
+
+    // Run list function (should only show VTI and VOO)
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("-f")
+        .arg("list")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Found 2 ETFs"));
+}
+
+#[test]
+fn test_config_file_force_option() {
+    let temp_dir = TempDir::new().unwrap();
+
+    // Create data directory
+    let data_dir = temp_dir.path().join("test_data");
+    fs::create_dir(&data_dir).unwrap();
+    let test_file = data_dir.join("test-etf-holdings.csv");
+    fs::write(&test_file, "Symbol,Name,% Weight,Shares,No.\nAAPL,Apple Inc.,10%,100,1\n").unwrap();
+
+    let output_path = temp_dir.path().join("output.csv");
+
+    // Create initial output file
+    fs::write(&output_path, "existing content").unwrap();
+
+    // Create config file with force = true
+    let config_file = temp_dir.path().join(".etf_analyzer.toml");
+    fs::write(&config_file, format!("data_dir = \"{}\"\nforce = true", data_dir.display())).unwrap();
+
+    // Run export (should overwrite without prompting due to force in config)
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("-f")
+        .arg("export")
+        .arg("-o")
+        .arg(&output_path)
+        .assert()
+        .success();
+
+    // Verify file was overwritten
+    let content = fs::read_to_string(&output_path).unwrap();
+    assert!(content.contains("ETF,Symbol,Name,Weight"));
+}
+
