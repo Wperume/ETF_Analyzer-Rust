@@ -269,10 +269,10 @@ fn test_overlap_function_with_output() {
     // Verify the file was created
     assert!(output_path.exists());
 
-    // Verify column order: Symbol, Name, ETF_Count, Weight, ETF
+    // Verify column order: Symbol, Name, ETF_Count, ETFs
     let content = fs::read_to_string(&output_path).unwrap();
     let first_line = content.lines().next().unwrap();
-    assert_eq!(first_line, "Symbol,Name,ETF_Count,Weight,ETF");
+    assert_eq!(first_line, "Symbol,Name,ETF_Count,ETFs");
 }
 
 #[test]

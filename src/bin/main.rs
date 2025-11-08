@@ -50,12 +50,19 @@ fn main() -> Result<()> {
     // Handle the export function
     if args.function == "export" {
         if let Some(output_path) = &args.output {
+            // Add .parquet extension if no extension is present
+            let output_path_with_ext = if std::path::Path::new(output_path).extension().is_none() {
+                format!("{}.parquet", output_path)
+            } else {
+                output_path.to_string()
+            };
+
             if args.verbose {
-                println!("Exporting DataFrame to: {}", output_path);
+                println!("Exporting DataFrame to: {}", output_path_with_ext);
             }
-            let written = io::export_dataframe(&df, output_path, args.force)?;
+            let written = io::export_dataframe(&df, &output_path_with_ext, args.force)?;
             if written {
-                println!("Successfully exported to: {}", output_path);
+                println!("Successfully exported to: {}", output_path_with_ext);
             }
         } else {
             return Err(etf_analyzer::Error::Other(

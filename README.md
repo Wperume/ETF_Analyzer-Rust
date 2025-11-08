@@ -52,7 +52,7 @@ etf_analyzer [OPTIONS]
 - `-d DIR` or `--data-dir DIR`: Directory containing ETF CSV files
 - `-i FILE` or `--import FILE`: Import previously exported DataFrame
 - `-f FUNCTION` or `--function FUNCTION`: Operation to perform
-  - `summary` (default): Display ETF portfolio summary (CSV export includes asset lists)
+  - `summary` (default): Display ETF portfolio summary (export includes asset lists)
   - `export`: Export DataFrame to file (requires `-o`)
   - `assets`: Show all assets with ETF associations and aggregated ETF counts
   - `unique`: Show assets that appear in only one ETF
@@ -299,8 +299,14 @@ etf_analyzer -d ./data -f assets --sort-by count
 # Filter to specific ETFs and analyze their assets
 etf_analyzer -d ./data -f assets --etfs VTV,IVW,IWF
 
-# Save results to CSV
+# Save results to CSV (default format when no extension specified)
+etf_analyzer -d ./data -f assets --sort-by count -o assets
+
+# Save results to CSV (explicit .csv extension)
 etf_analyzer -d ./data -f assets --sort-by count -o assets.csv
+
+# Save results to Parquet (explicitly specify .parquet extension)
+etf_analyzer -d ./data -f assets --sort-by count -o assets.parquet
 
 # Complete example with filtering and verbose output
 etf_analyzer -d ./data -f assets --etfs VTV,IVW --sort-by count -o filtered-assets.csv --verbose
@@ -315,6 +321,12 @@ etf_analyzer -d ./data -f unique
 # Save to CSV (default extension automatically added)
 etf_analyzer -d ./data -f unique -o unique_assets
 
+# Save to CSV (explicit .csv extension)
+etf_analyzer -d ./data -f unique -o unique_assets.csv
+
+# Save to Parquet (explicitly specify .parquet extension)
+etf_analyzer -d ./data -f unique -o unique_assets.parquet
+
 # With specific ETF filter
 etf_analyzer -d ./data --etfs VTV,IVW,IWF -f unique -o unique.csv
 ```
@@ -328,8 +340,14 @@ etf_analyzer -d ./data -f overlap
 # Sort by ETF count (assets in most ETFs first)
 etf_analyzer -d ./data -f overlap --sort-by count
 
-# Save to CSV
+# Save to CSV (default format when no extension specified)
+etf_analyzer -d ./data -f overlap --sort-by count -o overlaps
+
+# Save to CSV (explicit .csv extension)
 etf_analyzer -d ./data -f overlap --sort-by count -o overlaps.csv
+
+# Save to Parquet (explicitly specify .parquet extension)
+etf_analyzer -d ./data -f overlap --sort-by count -o overlaps.parquet
 
 # Filter to specific ETFs and find their overlaps
 etf_analyzer -d ./data --etfs VTV,IVW,IWF -f overlap -o overlap_value_etfs
@@ -344,8 +362,14 @@ etf_analyzer -d ./data -f mapping
 # Sort by ETF count (assets in most ETFs first)
 etf_analyzer -d ./data -f mapping --sort-by count
 
-# Save to CSV
+# Save to CSV (default format when no extension specified)
+etf_analyzer -d ./data -f mapping -o asset_mapping
+
+# Save to CSV (explicit .csv extension)
 etf_analyzer -d ./data -f mapping -o asset_mapping.csv
+
+# Save to Parquet (explicitly specify .parquet extension)
+etf_analyzer -d ./data -f mapping -o asset_mapping.parquet
 
 # Map assets for specific ETFs only
 etf_analyzer -d ./data --etfs VTV,IVW,IWF -f mapping --sort-by count -o value_etf_mapping
@@ -411,8 +435,23 @@ CSV (Comma-Separated Values) offers:
 
 The tool automatically detects the format based on file extension:
 - `.parquet` or `.pq` → Parquet format
-- `.csv` or any other extension → CSV format
-- No extension → Parquet (default)
+- `.csv` → CSV format
+- No extension:
+  - **Export function**: Defaults to Parquet format
+  - **Other functions** (summary, assets, unique, overlap, mapping): Default to CSV format
+
+**Examples:**
+```bash
+# Export function defaults to Parquet
+etf_analyzer -d ./data -f export -o portfolio         # Creates portfolio (Parquet)
+etf_analyzer -d ./data -f export -o portfolio.parquet # Creates portfolio.parquet
+etf_analyzer -d ./data -f export -o portfolio.csv     # Creates portfolio.csv
+
+# Other functions default to CSV
+etf_analyzer -d ./data -f summary -o summary          # Creates summary.csv
+etf_analyzer -d ./data -f summary -o summary.csv      # Creates summary.csv
+etf_analyzer -d ./data -f summary -o summary.parquet  # Creates summary.parquet
+```
 
 ## Project Structure
 

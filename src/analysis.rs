@@ -393,70 +393,51 @@ pub fn get_asset_mapping(df: &DataFrame, sort_by: AssetsSortBy) -> Result<DataFr
 }
 
 /// Get overlapping assets (assets that appear in more than one ETF)
-/// Returns a DataFrame with columns: Symbol, Name, ETF_Count, Weight, ETF
+/// Returns a DataFrame with columns: Symbol, Name, ETF_Count, ETFs
+/// One row per asset with ETFs as a comma-separated list
 /// Can be sorted by symbol (alphabetical) or by ETF_Count (descending) then symbol
 pub fn get_overlap_assets(df: &DataFrame, sort_by: AssetsSortBy) -> Result<DataFrame> {
-    // Group by Symbol to get ETF count
+    // Group by Symbol to get ETF count, Name, and list of ETFs
     let grouped = df
         .clone()
         .lazy()
         .group_by([col("Symbol")])
         .agg([
+            col("Name").first().alias("Name"),
             col("ETF").n_unique().alias("ETF_Count"),
+            col("ETF").implode().flatten().alias("ETFs_List"),
         ])
         .collect()?;
 
     // Filter for assets that appear in more than one ETF
-    let overlap_symbols = grouped
+    let overlap_df = grouped
         .clone()
         .lazy()
         .filter(col("ETF_Count").gt(lit(1u32)))
-        .select([col("Symbol")])
         .collect()?;
 
-    // Get the list of overlapping symbols
-    let symbol_col = overlap_symbols.column("Symbol")?;
-    let symbol_str = symbol_col.str()?;
-    let overlap_symbol_set: std::collections::HashSet<String> = symbol_str
+    // Convert the list of ETFs to comma-separated strings
+    let etfs_col = overlap_df.column("ETFs_List")?;
+    let etf_strings: Vec<String> = etfs_col
+        .list()?
         .into_iter()
-        .flatten()
-        .map(|s| s.to_string())
+        .map(|opt_series| {
+            opt_series
+                .map(|series| {
+                    series.str()
+                        .map(|ca| ca.into_iter().flatten().collect::<Vec<_>>().join(", "))
+                        .unwrap_or_default()
+                })
+                .unwrap_or_default()
+        })
         .collect();
 
-    // Filter original DataFrame to only include overlapping symbols
-    let df_symbol_col = df.column("Symbol")?;
-    let df_symbol_str = df_symbol_col.str()?;
+    // Create result DataFrame without the ETFs_List column
+    let mut result = overlap_df.select(["Symbol", "Name", "ETF_Count"])?;
 
-    let mask = BooleanChunked::from_iter(
-        df_symbol_str
-            .into_iter()
-            .map(|opt_str| {
-                opt_str.map_or(false, |s| overlap_symbol_set.contains(s))
-            })
-    );
-
-    let filtered = df.filter(&mask)?;
-
-    // Join with the grouped DataFrame to get ETF_Count for each row
-    let overlap_with_count = grouped
-        .clone()
-        .lazy()
-        .filter(col("ETF_Count").gt(lit(1u32)))
-        .collect()?;
-
-    let result = filtered
-        .clone()
-        .lazy()
-        .join(
-            overlap_with_count.lazy(),
-            [col("Symbol")],
-            [col("Symbol")],
-            JoinArgs::new(JoinType::Inner)
-        )
-        .collect()?;
-
-    // Reorder columns: Symbol, Name, ETF_Count, Weight, ETF
-    let result = result.select(["Symbol", "Name", "ETF_Count", "Weight", "ETF"])?;
+    // Add the ETFs column with comma-separated strings
+    let etfs_series = Series::new("ETFs".into(), etf_strings);
+    result.with_column(etfs_series)?;
 
     // Sort based on the sort_by parameter
     let result = match sort_by {
@@ -660,11 +641,12 @@ mod tests {
         let overlap = get_overlap_assets(&df, AssetsSortBy::Symbol).unwrap();
 
         // AAPL and GOOGL appear in 2 ETFs each (MSFT only in 1)
-        assert_eq!(overlap.height(), 4); // 2 rows for AAPL + 2 rows for GOOGL
+        // Should have one row per asset
+        assert_eq!(overlap.height(), 2); // AAPL and GOOGL
 
-        // Verify column order: Symbol, Name, ETF_Count, Weight, ETF
+        // Verify column order: Symbol, Name, ETF_Count, ETFs
         let columns = overlap.get_column_names();
-        assert_eq!(columns, vec!["Symbol", "Name", "ETF_Count", "Weight", "ETF"]);
+        assert_eq!(columns, vec!["Symbol", "Name", "ETF_Count", "ETFs"]);
 
         // Verify ETF_Count column exists and has correct values
         let etf_counts = overlap.column("ETF_Count").unwrap().u32().unwrap();
@@ -677,12 +659,18 @@ mod tests {
         assert!(symbol_vec.contains(&"AAPL"));
         assert!(symbol_vec.contains(&"GOOGL"));
         assert!(!symbol_vec.contains(&"MSFT")); // MSFT only appears in 1 ETF
+
+        // Verify ETFs column contains comma-separated values
+        let etfs = overlap.column("ETFs").unwrap().str().unwrap();
+        let etfs_vec: Vec<&str> = etfs.into_iter().flatten().collect();
+        // Check that we have comma-separated ETF lists
+        assert!(etfs_vec.iter().any(|s| s.contains(", ")));
     }
 
     #[test]
     fn test_get_overlap_assets_sort_by_count() {
         let df = df! {
-            "ETF" => &["SPY", "QQQ", "SPY", "IWF", "VTI", "DIA"],
+            "ETF" => &["SPY", "QQQ", "VTI", "IWF", "VTI", "DIA"],
             "Symbol" => &["AAPL", "AAPL", "AAPL", "GOOGL", "GOOGL", "MSFT"],
             "Name" => &["Apple", "Apple", "Apple", "Google", "Google", "Microsoft"],
             "Weight" => &["5%", "6%", "7%", "8%", "9%", "10%"]
@@ -690,12 +678,17 @@ mod tests {
 
         let overlap = get_overlap_assets(&df, AssetsSortBy::EtfCount).unwrap();
 
+        // AAPL appears in 3 ETFs (SPY, QQQ, VTI), GOOGL in 2 ETFs (IWF, VTI)
+        // Should have one row per asset (MSFT excluded as it only appears in 1 ETF)
+        assert_eq!(overlap.height(), 2); // AAPL and GOOGL
+
         // Should be sorted by ETF_Count descending, then by Symbol
         let etf_counts = overlap.column("ETF_Count").unwrap().u32().unwrap();
         let counts: Vec<u32> = etf_counts.into_iter().flatten().collect();
 
-        // AAPL appears 3 times (3 ETFs), GOOGL 2 times (2 ETFs)
-        // First rows should be AAPL (count=3)
+        // AAPL should be first (count=3), then GOOGL (count=2)
+        assert_eq!(counts[0], 3); // AAPL
+        assert_eq!(counts[1], 2); // GOOGL
         assert!(counts[0] >= counts[counts.len() - 1]); // Descending order
     }
 
