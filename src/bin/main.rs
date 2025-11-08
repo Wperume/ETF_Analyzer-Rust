@@ -239,6 +239,51 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
+    // Handle the compare function
+    if args.function == "compare" {
+        if args.verbose {
+            println!("Comparing ETFs...");
+        }
+
+        // Require ETF list for comparison
+        let etf_list = if let Some(etfs) = &args.etfs {
+            etfs.clone()
+        } else {
+            return Err(etf_analyzer::Error::Other(
+                "Compare function requires --etfs to be specified".to_string()
+            ));
+        };
+
+        let comparison_df = analysis::get_etf_comparison(&df, &etf_list)?;
+
+        // Print comparison info to stdout
+        println!("Comparing {} ETFs across {} unique assets", etf_list.len(), comparison_df.height());
+
+        // Require output file for comparison
+        if let Some(output_path) = &args.output {
+            // Add .csv extension if no extension is present
+            let output_path_with_ext = if std::path::Path::new(output_path).extension().is_none() {
+                format!("{}.csv", output_path)
+            } else {
+                output_path.to_string()
+            };
+
+            if args.verbose {
+                println!("Saving comparison to: {}", output_path_with_ext);
+            }
+            let written = io::export_dataframe(&comparison_df, &output_path_with_ext, args.force)?;
+            if written {
+                println!("Comparison saved to: {}", output_path_with_ext);
+            }
+        } else {
+            return Err(etf_analyzer::Error::Other(
+                "Compare function requires --output (-o) to be specified".to_string()
+            ));
+        }
+
+        return Ok(());
+    }
+
     // Handle the list function
     if args.function == "list" {
         if args.verbose {

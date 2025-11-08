@@ -456,6 +456,96 @@ pub fn get_overlap_assets(df: &DataFrame, sort_by: AssetsSortBy) -> Result<DataF
     Ok(result)
 }
 
+/// Compare ETFs side-by-side showing asset weights
+/// Returns a DataFrame with columns: Symbol, followed by one column per ETF
+/// Each ETF column contains the weight of that asset in the ETF, or "N/A" if not present
+/// etfs: List of ETF symbols to compare
+pub fn get_etf_comparison(df: &DataFrame, etfs: &[String]) -> Result<DataFrame> {
+    use std::collections::HashMap;
+
+    // Filter the DataFrame to only include the specified ETFs
+    let etf_col = df.column("ETF")?;
+    let etf_str = etf_col.str()?;
+
+    // Create a set of ETFs (case-insensitive) for filtering
+    let etf_set: std::collections::HashSet<String> = etfs
+        .iter()
+        .map(|e| e.to_uppercase())
+        .collect();
+
+    let mask = BooleanChunked::from_iter(
+        etf_str
+            .into_iter()
+            .map(|opt_str| {
+                opt_str.map_or(false, |s| etf_set.contains(&s.to_uppercase()))
+            })
+    );
+
+    let filtered = df.filter(&mask)?;
+
+    if filtered.height() == 0 {
+        return Err(crate::Error::Other(
+            "No data found for the specified ETFs".to_string()
+        ));
+    }
+
+    // Get all unique symbols across all specified ETFs
+    let symbol_col = filtered.column("Symbol")?;
+    let symbol_str = symbol_col.str()?;
+    let unique_symbols: std::collections::BTreeSet<String> = symbol_str
+        .into_iter()
+        .flatten()
+        .map(|s| s.to_string())
+        .collect();
+
+    // Build a map: (Symbol, ETF) -> Weight
+    let mut weight_map: HashMap<(String, String), String> = HashMap::new();
+
+    let symbols = filtered.column("Symbol")?.str()?;
+    let etf_values = filtered.column("ETF")?.str()?;
+    let weights = filtered.column("Weight")?.str()?;
+
+    for i in 0..filtered.height() {
+        if let (Some(symbol), Some(etf), Some(weight)) = (
+            symbols.get(i),
+            etf_values.get(i),
+            weights.get(i)
+        ) {
+            weight_map.insert(
+                (symbol.to_string(), etf.to_uppercase()),
+                weight.to_string()
+            );
+        }
+    }
+
+    // Create the result DataFrame
+    let symbols_vec: Vec<String> = unique_symbols.into_iter().collect();
+
+    // Start with Symbol column
+    let mut result = df! {
+        "Symbol" => &symbols_vec
+    }?;
+
+    // Add a column for each ETF
+    for etf in etfs {
+        let etf_upper = etf.to_uppercase();
+        let weights_for_etf: Vec<String> = symbols_vec
+            .iter()
+            .map(|symbol| {
+                weight_map
+                    .get(&(symbol.clone(), etf_upper.clone()))
+                    .cloned()
+                    .unwrap_or_else(|| "N/A".to_string())
+            })
+            .collect();
+
+        let etf_series = Series::new(etf_upper.clone().into(), weights_for_etf);
+        result.with_column(etf_series)?;
+    }
+
+    Ok(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -864,5 +954,80 @@ mod tests {
         assert!(summary.contains("Total ETFs: 3"));
         assert!(summary.contains("Largest ETF contains 15 assets"));
         assert!(summary.contains("Smallest ETF contains 5 assets"));
+    }
+
+    #[test]
+    fn test_get_etf_comparison() {
+        let df = df! {
+            "ETF" => &["SPY", "QQQ", "SPY", "QQQ", "VTI"],
+            "Symbol" => &["AAPL", "AAPL", "MSFT", "GOOGL", "TSLA"],
+            "Name" => &["Apple", "Apple", "Microsoft", "Google", "Tesla"],
+            "Weight" => &["5%", "6%", "7%", "8%", "9%"]
+        }.unwrap();
+
+        let etfs = vec!["SPY".to_string(), "QQQ".to_string()];
+        let comparison = get_etf_comparison(&df, &etfs).unwrap();
+
+        // Should have 3 unique symbols (AAPL, MSFT, GOOGL) - TSLA is in VTI which is not in the comparison
+        assert_eq!(comparison.height(), 3);
+
+        // Verify column order: Symbol, SPY, QQQ
+        let columns = comparison.get_column_names();
+        assert_eq!(columns, vec!["Symbol", "SPY", "QQQ"]);
+
+        // Check weights
+        let symbols = comparison.column("Symbol").unwrap().str().unwrap();
+        let spy_weights = comparison.column("SPY").unwrap().str().unwrap();
+        let qqq_weights = comparison.column("QQQ").unwrap().str().unwrap();
+
+        let symbol_vec: Vec<&str> = symbols.into_iter().flatten().collect();
+        let spy_vec: Vec<&str> = spy_weights.into_iter().flatten().collect();
+        let qqq_vec: Vec<&str> = qqq_weights.into_iter().flatten().collect();
+
+        // AAPL should be in both SPY and QQQ
+        let aapl_idx = symbol_vec.iter().position(|&s| s == "AAPL").unwrap();
+        assert_eq!(spy_vec[aapl_idx], "5%");
+        assert_eq!(qqq_vec[aapl_idx], "6%");
+
+        // MSFT should be in SPY only
+        let msft_idx = symbol_vec.iter().position(|&s| s == "MSFT").unwrap();
+        assert_eq!(spy_vec[msft_idx], "7%");
+        assert_eq!(qqq_vec[msft_idx], "N/A");
+
+        // GOOGL should be in QQQ only
+        let googl_idx = symbol_vec.iter().position(|&s| s == "GOOGL").unwrap();
+        assert_eq!(spy_vec[googl_idx], "N/A");
+        assert_eq!(qqq_vec[googl_idx], "8%");
+    }
+
+    #[test]
+    fn test_get_etf_comparison_case_insensitive() {
+        let df = df! {
+            "ETF" => &["SPY", "QQQ"],
+            "Symbol" => &["AAPL", "AAPL"],
+            "Name" => &["Apple", "Apple"],
+            "Weight" => &["5%", "6%"]
+        }.unwrap();
+
+        let etfs = vec!["spy".to_string(), "qqq".to_string()];
+        let comparison = get_etf_comparison(&df, &etfs).unwrap();
+
+        assert_eq!(comparison.height(), 1);
+        let columns = comparison.get_column_names();
+        assert_eq!(columns, vec!["Symbol", "SPY", "QQQ"]);
+    }
+
+    #[test]
+    fn test_get_etf_comparison_no_etfs() {
+        let df = df! {
+            "ETF" => &["SPY", "QQQ"],
+            "Symbol" => &["AAPL", "MSFT"],
+            "Name" => &["Apple", "Microsoft"],
+            "Weight" => &["5%", "6%"]
+        }.unwrap();
+
+        let etfs = vec!["VTI".to_string()];
+        let result = get_etf_comparison(&df, &etfs);
+        assert!(result.is_err());
     }
 }

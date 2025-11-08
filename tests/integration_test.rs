@@ -604,3 +604,83 @@ fn test_summary_function_with_filter() {
     let lines: Vec<&str> = content.lines().collect();
     assert_eq!(lines.len(), 3); // Header + 2 ETFs
 }
+
+#[test]
+fn test_compare_function() {
+    let temp_dir = TempDir::new().unwrap();
+    let output_path = temp_dir.path().join("test_compare.csv");
+
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.arg("-d")
+        .arg("./example-data")
+        .arg("--etfs")
+        .arg("IVW,IWF")
+        .arg("-f")
+        .arg("compare")
+        .arg("-o")
+        .arg(&output_path)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Comparing 2 ETFs"));
+
+    // Verify the file was created
+    assert!(output_path.exists());
+
+    // Verify column structure: Symbol, IVW, IWF
+    let content = fs::read_to_string(&output_path).unwrap();
+    let first_line = content.lines().next().unwrap();
+    assert_eq!(first_line, "Symbol,IVW,IWF");
+}
+
+#[test]
+fn test_compare_function_default_extension() {
+    let temp_dir = TempDir::new().unwrap();
+    let output_path = temp_dir.path().join("test_compare");
+
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.arg("-d")
+        .arg("./example-data")
+        .arg("--etfs")
+        .arg("IVW,IWF")
+        .arg("-f")
+        .arg("compare")
+        .arg("-o")
+        .arg(&output_path)
+        .assert()
+        .success();
+
+    // Verify the file was created with .csv extension
+    let csv_path = temp_dir.path().join("test_compare.csv");
+    assert!(csv_path.exists());
+}
+
+#[test]
+fn test_compare_function_requires_etfs() {
+    let temp_dir = TempDir::new().unwrap();
+    let output_path = temp_dir.path().join("test_compare.csv");
+
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.arg("-d")
+        .arg("./example-data")
+        .arg("-f")
+        .arg("compare")
+        .arg("-o")
+        .arg(&output_path)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Compare function requires --etfs to be specified"));
+}
+
+#[test]
+fn test_compare_function_requires_output() {
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.arg("-d")
+        .arg("./example-data")
+        .arg("--etfs")
+        .arg("IVW,IWF")
+        .arg("-f")
+        .arg("compare")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Compare function requires --output (-o) to be specified"));
+}

@@ -58,8 +58,8 @@ etf_analyzer [OPTIONS]
   - `unique`: Show assets that appear in only one ETF
   - `overlap`: Show assets that appear in multiple ETFs (with ETF_Count column)
   - `mapping`: Show asset-to-ETF mapping with summary statistics
+  - `compare`: Compare specific ETFs side-by-side showing asset weights across ETFs
   - `list`: List all ETF symbols in the DataFrame
-  - `compare`: Compare specific ETFs side-by-side (Coming Soon)
 - `-o FILE` or `--output FILE`: Output file (if not specified, print to stdout)
 - `--etfs ETF1,ETF2,...`: Comma-separated list of ETF symbols to include in analysis (filters data before processing)
 - `--sort-by {symbol,count}`: Sort order for assets, overlap, and mapping functions - 'symbol' (alphabetical, default) or 'count' (by ETF count descending)
@@ -373,6 +373,36 @@ etf_analyzer -d ./data -f mapping -o asset_mapping.parquet
 
 # Map assets for specific ETFs only
 etf_analyzer -d ./data --etfs VTV,IVW,IWF -f mapping --sort-by count -o value_etf_mapping
+```
+
+### Compare ETFs
+
+```bash
+# Compare specific ETFs side-by-side (requires --etfs and --output)
+etf_analyzer -d ./data --etfs IVE,IVW,IWF -f compare -o etf_comparison.csv
+
+# Compare without extension (default .csv will be added)
+etf_analyzer -d ./data --etfs IVE,IVW,IWF -f compare -o etf_comparison
+
+# Compare two ETFs to see differences
+etf_analyzer -d ./data --etfs VTV,VBR -f compare -o value_comparison.csv
+
+# Compare multiple ETFs with verbose output
+etf_analyzer -d ./data --etfs IVE,IVW,IWF,IWS -f compare -o four_etf_compare.csv --verbose
+```
+
+**Compare Output Format:**
+- `Symbol`: Asset symbol
+- One column per ETF (column name = ETF symbol)
+- Each ETF column shows the weight (percentage) of that asset in the ETF
+- "N/A" appears when an asset is not in a particular ETF
+
+**Example output:**
+```
+Symbol,IVE,IVW,IWF
+AAPL,8.16%,5.66%,11.28%
+MSFT,7.23%,N/A,N/A
+GOOGL,N/A,4.12%,3.89%
 ```
 
 ### List ETFs
