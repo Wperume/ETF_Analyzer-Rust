@@ -14,6 +14,26 @@ fn main() -> Result<()> {
         ));
     }
 
+    // Create column configuration from CLI arguments
+    let column_config = io::ColumnConfig::from_args(
+        args.symbol_col.clone(),
+        args.name_col.clone(),
+        args.weight_col.clone(),
+        args.shares_col.clone(),
+        args.number_col.clone(),
+    );
+
+    if args.verbose && (args.symbol_col.is_some() || args.name_col.is_some() ||
+                        args.weight_col.is_some() || args.shares_col.is_some() ||
+                        args.number_col.is_some()) {
+        println!("Using custom column configuration:");
+        println!("  Symbol column: {}", column_config.symbol_col);
+        println!("  Name column: {}", column_config.name_col);
+        println!("  Weight column: {}", column_config.weight_col);
+        println!("  Shares column: {}", column_config.shares_col);
+        println!("  Number column: {}", column_config.number_col);
+    }
+
     // Load DataFrame from either import file or data directory
     let mut df = if let Some(import_path) = &args.import {
         if args.verbose {
@@ -24,7 +44,7 @@ fn main() -> Result<()> {
         if args.verbose {
             println!("Loading portfolio from directory: {}", data_dir);
         }
-        io::load_portfolio_from_directory(data_dir)?
+        io::load_portfolio_from_directory_with_config(data_dir, &column_config)?
     } else {
         unreachable!("Either data_dir or import must be Some");
     };

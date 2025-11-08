@@ -14,6 +14,9 @@ Cargo.lock
 *~
 .DS_Store
 
+# Claude Code
+.claude/
+
 # Testing
 *.profraw
 *.profdata

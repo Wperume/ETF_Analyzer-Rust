@@ -684,3 +684,111 @@ fn test_compare_function_requires_output() {
         .failure()
         .stderr(predicate::str::contains("Compare function requires --output (-o) to be specified"));
 }
+
+#[test]
+fn test_column_override_symbol_col() {
+    // Create a temporary directory with a test CSV file that has different column names
+    let temp_dir = TempDir::new().unwrap();
+    let test_file = temp_dir.path().join("test-etf-holdings.csv");
+
+    // Write a CSV with custom column names (Ticker instead of Symbol)
+    fs::write(&test_file, "Ticker,Name,% Weight,Shares,No.\nAAPL,Apple Inc.,10%,100,1\nMSFT,Microsoft,8%,80,2\n").unwrap();
+
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.arg("-d")
+        .arg(temp_dir.path())
+        .arg("--symbol-col")
+        .arg("Ticker")
+        .arg("-f")
+        .arg("list")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Found 1 ETFs"));
+}
+
+#[test]
+fn test_column_override_multiple_columns() {
+    let temp_dir = TempDir::new().unwrap();
+    let test_file = temp_dir.path().join("custom-etf-holdings.csv");
+
+    // Write a CSV with all custom column names
+    fs::write(&test_file, "Ticker,CompanyName,Weighting,Holdings,RowNum\nAAPL,Apple Inc.,10%,100,1\nMSFT,Microsoft,8%,80,2\n").unwrap();
+
+    let output_path = temp_dir.path().join("output.csv");
+
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.arg("-d")
+        .arg(temp_dir.path())
+        .arg("--symbol-col")
+        .arg("Ticker")
+        .arg("--name-col")
+        .arg("CompanyName")
+        .arg("--weight-col")
+        .arg("Weighting")
+        .arg("--shares-col")
+        .arg("Holdings")
+        .arg("--number-col")
+        .arg("RowNum")
+        .arg("-f")
+        .arg("summary")
+        .arg("-o")
+        .arg(&output_path)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Total ETFs: 1"));
+
+    // Verify the output file was created and contains the expected data
+    assert!(output_path.exists());
+    let content = fs::read_to_string(&output_path).unwrap();
+    assert!(content.contains("AAPL"));
+    assert!(content.contains("MSFT"));
+}
+
+#[test]
+fn test_column_override_with_different_order() {
+    let temp_dir = TempDir::new().unwrap();
+    let test_file = temp_dir.path().join("reordered-etf-holdings.csv");
+
+    // Write a CSV with columns in a different order than usual
+    fs::write(&test_file, "CompanyName,Weighting,Ticker,Holdings,RowNum\nApple Inc.,10%,AAPL,100,1\nMicrosoft,8%,MSFT,80,2\n").unwrap();
+
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.arg("-d")
+        .arg(temp_dir.path())
+        .arg("--symbol-col")
+        .arg("Ticker")
+        .arg("--name-col")
+        .arg("CompanyName")
+        .arg("--weight-col")
+        .arg("Weighting")
+        .arg("--shares-col")
+        .arg("Holdings")
+        .arg("--number-col")
+        .arg("RowNum")
+        .arg("-f")
+        .arg("assets")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Total assets: 2"));
+}
+
+#[test]
+fn test_column_override_verbose_output() {
+    let temp_dir = TempDir::new().unwrap();
+    let test_file = temp_dir.path().join("test-etf-holdings.csv");
+
+    fs::write(&test_file, "Ticker,Name,% Weight,Shares,No.\nAAPL,Apple Inc.,10%,100,1\n").unwrap();
+
+    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    cmd.arg("-d")
+        .arg(temp_dir.path())
+        .arg("--symbol-col")
+        .arg("Ticker")
+        .arg("-f")
+        .arg("list")
+        .arg("-v")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Using custom column configuration"))
+        .stdout(predicate::str::contains("Symbol column: Ticker"));
+}

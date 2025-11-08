@@ -5,6 +5,48 @@ use std::io::{self, Write};
 use rayon::prelude::*;
 use crate::Result;
 
+/// Configuration for column name mapping
+#[derive(Clone, Debug)]
+pub struct ColumnConfig {
+    pub symbol_col: String,
+    pub name_col: String,
+    pub weight_col: String,
+    pub shares_col: String,
+    pub number_col: String,
+}
+
+impl Default for ColumnConfig {
+    fn default() -> Self {
+        Self {
+            symbol_col: "Symbol".to_string(),
+            name_col: "Name".to_string(),
+            weight_col: "% Weight".to_string(),
+            shares_col: "Shares".to_string(),
+            number_col: "No.".to_string(),
+        }
+    }
+}
+
+impl ColumnConfig {
+    /// Create a ColumnConfig from CLI arguments
+    pub fn from_args(
+        symbol_col: Option<String>,
+        name_col: Option<String>,
+        weight_col: Option<String>,
+        shares_col: Option<String>,
+        number_col: Option<String>,
+    ) -> Self {
+        let default = Self::default();
+        Self {
+            symbol_col: symbol_col.unwrap_or(default.symbol_col),
+            name_col: name_col.unwrap_or(default.name_col),
+            weight_col: weight_col.unwrap_or(default.weight_col),
+            shares_col: shares_col.unwrap_or(default.shares_col),
+            number_col: number_col.unwrap_or(default.number_col),
+        }
+    }
+}
+
 /// Load ETF data from a CSV file
 pub fn load_csv<P: AsRef<Path>>(path: P) -> Result<DataFrame> {
     let df = CsvReadOptions::default()
@@ -50,14 +92,21 @@ fn extract_etf_name<P: AsRef<Path>>(path: P) -> Result<String> {
     }
 }
 
-/// Load ETF holdings CSV file with specific format
-/// Expected columns: "No.", "Name", "Ticker", "Asset Class", "% Weight", "Shares"
+/// Load ETF holdings CSV file with configurable column names
 /// The function will:
+/// - Rename columns from user-specified names to standard names (Symbol, Name, Weight)
 /// - Synthesize Symbol values for empty/null/n/a entries using format: {ETF}-{No.}
-/// - Rename "% Weight" to "weight"
-/// - Add an "etf" column with the ETF name extracted from filename
-/// - Reorder columns so "etf" is first
+/// - Add an "ETF" column with the ETF name extracted from filename
+/// - Reorder columns so "ETF" is first
 pub fn load_holdings_csv<P: AsRef<Path>>(path: P) -> Result<DataFrame> {
+    load_holdings_csv_with_config(path, &ColumnConfig::default())
+}
+
+/// Load ETF holdings CSV file with custom column configuration
+pub fn load_holdings_csv_with_config<P: AsRef<Path>>(
+    path: P,
+    config: &ColumnConfig,
+) -> Result<DataFrame> {
     let path_ref = path.as_ref();
     let etf_name = extract_etf_name(path_ref)?;
 
@@ -66,12 +115,30 @@ pub fn load_holdings_csv<P: AsRef<Path>>(path: P) -> Result<DataFrame> {
         .try_into_reader_with_file_path(Some(path_ref.to_path_buf()))?
         .finish()?;
 
-    // Get the "No." column before we process it
-    let no_col = if df.column("No.").is_ok() {
-        Some(df.column("No.")?.clone())
+    // Get the number column before we process it (if it exists)
+    let no_col = if df.column(&config.number_col).is_ok() {
+        Some(df.column(&config.number_col)?.clone())
     } else {
         None
     };
+
+    // Rename user-specified columns to standard names
+    // We do this first to standardize the column names for the rest of the processing
+    if df.column(&config.symbol_col).is_ok() && config.symbol_col != "Symbol" {
+        df.rename(&config.symbol_col, "Symbol".into())?;
+    }
+
+    if df.column(&config.name_col).is_ok() && config.name_col != "Name" {
+        df.rename(&config.name_col, "Name".into())?;
+    }
+
+    if df.column(&config.weight_col).is_ok() && config.weight_col != "Weight" {
+        df.rename(&config.weight_col, "Weight".into())?;
+    }
+
+    if df.column(&config.shares_col).is_ok() && config.shares_col != "Shares" {
+        df.rename(&config.shares_col, "Shares".into())?;
+    }
 
     // Synthesize Symbol values for empty/null/n/a entries
     if let Some(no_series) = &no_col {
@@ -101,14 +168,9 @@ pub fn load_holdings_csv<P: AsRef<Path>>(path: P) -> Result<DataFrame> {
         }
     }
 
-    // Drop the "No." column if it exists (we don't need it anymore)
-    if df.column("No.").is_ok() {
-        df = df.drop("No.")?;
-    }
-
-    // Rename "% Weight" to "Weight"
-    if df.column("% Weight").is_ok() {
-        df.rename("% Weight", "Weight".into())?;
+    // Drop the number column if it exists (we don't need it anymore)
+    if df.column(&config.number_col).is_ok() {
+        df = df.drop(&config.number_col)?;
     }
 
     // Add ETF name column
@@ -141,14 +203,25 @@ pub fn load_holdings_csv<P: AsRef<Path>>(path: P) -> Result<DataFrame> {
 /// Load multiple ETF holdings files and combine them into a single DataFrame
 /// Uses parallel processing with Rayon for improved performance when loading many files
 pub fn load_multiple_holdings<P: AsRef<Path> + Send + Sync>(paths: Vec<P>) -> Result<DataFrame> {
+    load_multiple_holdings_with_config(paths, &ColumnConfig::default())
+}
+
+/// Load multiple ETF holdings files with custom column configuration
+pub fn load_multiple_holdings_with_config<P: AsRef<Path> + Send + Sync>(
+    paths: Vec<P>,
+    config: &ColumnConfig,
+) -> Result<DataFrame> {
     if paths.is_empty() {
         return Err(crate::Error::Other("No paths provided".to_string()));
     }
 
+    // Clone config for use in parallel closure
+    let config_clone = config.clone();
+
     // Load all files in parallel using Rayon
     let results: Vec<Result<DataFrame>> = paths
         .par_iter()
-        .map(|path| load_holdings_csv(path))
+        .map(|path| load_holdings_csv_with_config(path, &config_clone))
         .collect();
 
     // Collect results and handle errors
@@ -173,6 +246,14 @@ pub fn load_multiple_holdings<P: AsRef<Path> + Send + Sync>(paths: Vec<P>) -> Re
 /// Load all ETF holdings CSV files from a directory
 /// Looks for files matching pattern: *-etf-holdings.csv
 pub fn load_portfolio_from_directory<P: AsRef<Path>>(dir_path: P) -> Result<DataFrame> {
+    load_portfolio_from_directory_with_config(dir_path, &ColumnConfig::default())
+}
+
+/// Load all ETF holdings CSV files from a directory with custom column configuration
+pub fn load_portfolio_from_directory_with_config<P: AsRef<Path>>(
+    dir_path: P,
+    config: &ColumnConfig,
+) -> Result<DataFrame> {
     let dir_path = dir_path.as_ref();
 
     if !dir_path.exists() {
@@ -210,7 +291,7 @@ pub fn load_portfolio_from_directory<P: AsRef<Path>>(dir_path: P) -> Result<Data
     // Sort for consistent ordering
     csv_files.sort();
 
-    load_multiple_holdings(csv_files)
+    load_multiple_holdings_with_config(csv_files, config)
 }
 
 /// Determine file format from extension

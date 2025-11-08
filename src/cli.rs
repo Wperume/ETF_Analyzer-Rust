@@ -31,6 +31,26 @@ pub struct Args {
     #[arg(long, value_delimiter = ',')]
     pub etfs: Option<Vec<String>>,
 
+    /// Column name for asset symbol in input CSV (default: "Symbol")
+    #[arg(long)]
+    pub symbol_col: Option<String>,
+
+    /// Column name for asset name in input CSV (default: "Name")
+    #[arg(long)]
+    pub name_col: Option<String>,
+
+    /// Column name for weight/percentage in input CSV (default: "% Weight")
+    #[arg(long)]
+    pub weight_col: Option<String>,
+
+    /// Column name for shares in input CSV (default: "Shares")
+    #[arg(long)]
+    pub shares_col: Option<String>,
+
+    /// Column name for row number in input CSV (default: "No.")
+    #[arg(long)]
+    pub number_col: Option<String>,
+
     /// Verbose mode
     #[arg(short, long)]
     pub verbose: bool,

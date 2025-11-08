@@ -61,23 +61,24 @@ etf_analyzer [OPTIONS]
   - `compare`: Compare specific ETFs side-by-side showing asset weights across ETFs
   - `list`: List all ETF symbols in the DataFrame
 - `-o FILE` or `--output FILE`: Output file (if not specified, print to stdout)
-- `--etfs ETF1,ETF2,...`: Comma-separated list of ETF symbols to include in analysis (filters data before processing)
+- `--etfs ETF1,ETF2,...`: Comma-separated list of ETF symbols to include in analysis (e.g., VTI,VOO,SPY)
 - `--sort-by {symbol,count}`: Sort order for assets, overlap, and mapping functions - 'symbol' (alphabetical, default) or 'count' (by ETF count descending)
-- `--symbol-col COLUMN`: Column name for asset symbol (default: Symbol)
-- `--name-col COLUMN`: Column name for asset name (default: Name)
-- `--weight-col COLUMN`: Column name for weight/percentage (default: % Weight)
-- `--shares-col COLUMN`: Column name for shares (default: Shares)
-- `--sort-assets {weight,alpha}`: Sort assets by weight (default) or alphabetically (for summary and compare functions)
-- `--sort-etfs {weight,alpha}`: Sort ETFs by asset weight (default) or alphabetically (for overlap function)
+- `--symbol-col COLUMN`: Column name for asset symbol in input CSV (default: "Symbol")
+- `--name-col COLUMN`: Column name for asset name in input CSV (default: "Name")
+- `--weight-col COLUMN`: Column name for weight/percentage in input CSV (default: "% Weight")
+- `--shares-col COLUMN`: Column name for shares in input CSV (default: "Shares")
+- `--number-col COLUMN`: Column name for row number in input CSV (default: "No.")
 - `--force`: Force overwrite of existing output files without prompting
 - `-v` or `--verbose`: Enable verbose output
 
 ### Notes
 
 - Either `-d` or `-i` must be specified
-- The `-o` option is required for `-f export`
-- Column overrides (`--symbol-col`, etc.) are useful when your CSV files use different column names
-- Only specify the column overrides you need; others will use defaults
+- The `-o` option is required for `-f export` and `-f compare`
+- **Column Name Overrides**: Use `--symbol-col`, `--name-col`, `--weight-col`, `--shares-col`, and `--number-col` to specify custom column names when your input CSV files use different column names than the defaults
+  - Only specify the column overrides you need; others will use defaults
+  - Column names are case-sensitive
+  - The tool works correctly regardless of column order in the CSV files (columns are accessed by name, not position)
 - **File Overwrite Protection**: If the output file exists, you'll be prompted to confirm overwrite. Use `--force` to skip the prompt for automated scripts.
 
 ## File Formats
@@ -439,12 +440,31 @@ etf_analyzer -d ./data --etfs IVW,IWF,VTV -f overlap --sort-by count
 etf_analyzer -d ./data --etfs VTV,VBR -f mapping
 ```
 
-### Other Analysis Functions (Coming Soon)
+### Using Custom Column Names
+
+If your input CSV files use different column names than the defaults, you can override them:
 
 ```bash
-# Compare specific ETFs side-by-side
-etf_analyzer -d ./data -f compare --etfs SPY,VOO,QQQ
+# If your CSV uses "Ticker" instead of "Symbol" and "Weighting" instead of "% Weight"
+etf_analyzer -d ./data --symbol-col Ticker --weight-col Weighting -f assets
+
+# Multiple column overrides
+etf_analyzer -d ./data \
+  --symbol-col Ticker \
+  --name-col CompanyName \
+  --weight-col Weighting \
+  --shares-col Holdings \
+  -f summary -o summary.csv
+
+# With verbose output to see the configuration being used
+etf_analyzer -d ./data --symbol-col Ticker --weight-col Weighting -f list -v
 ```
+
+**Notes:**
+- Column names are case-sensitive
+- Only override the columns that differ from defaults
+- The tool works correctly regardless of column order in your CSV files
+- All functions will use the specified column configuration
 
 ### Export File Formats
 
