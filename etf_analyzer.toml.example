@@ -1,0 +1,64 @@
+# ETF Analyzer Configuration File Example
+#
+# This file shows all available configuration options with their default values.
+# Copy this file to one of the following locations and customize as needed:
+#
+# 1. .etf_analyzer.toml (in your project/working directory)
+# 2. ~/.config/etf_analyzer/config.toml (Linux/macOS user config)
+# 3. ~/.etf_analyzer.toml (user home directory)
+#
+# CLI arguments always take precedence over config file settings.
+
+# Default data directory containing ETF CSV files
+# data_dir = "./data"
+
+# Default function to perform
+# Options: summary, export, assets, unique, overlap, compare, mapping, list
+# function = "summary"
+
+# Default output file path
+# output = "./output.csv"
+
+# Default sort order for assets, overlap, and mapping functions
+# Options: symbol (alphabetical), count (by ETF count)
+# sort_by = "symbol"
+
+# Default ETFs to filter (comma-separated list)
+# etfs = ["VTI", "VOO", "SPY"]
+
+# Force overwrite of existing output files without prompting
+# force = false
+
+# Enable verbose output by default
+# verbose = false
+
+# Column name overrides for input CSV files
+# Use these if your CSV files have different column names
+[columns]
+# Column name for asset symbol (default: "Symbol")
+# symbol_col = "Ticker"
+
+# Column name for asset name (default: "Name")
+# name_col = "CompanyName"
+
+# Column name for weight/percentage (default: "% Weight")
+# weight_col = "Weighting"
+
+# Column name for shares (default: "Shares")
+# shares_col = "Holdings"
+
+# Column name for row number (default: "No.")
+# number_col = "RowNum"
+
+# Example: Minimal configuration for common use case
+# Uncomment and modify these lines for a typical setup:
+
+# data_dir = "./my_etf_data"
+# function = "summary"
+# verbose = true
+# sort_by = "count"
+
+# Example: Custom column names for non-standard CSV files
+# [columns]
+# symbol_col = "Ticker"
+# weight_col = "Portfolio Weight"

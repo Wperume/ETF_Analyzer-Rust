@@ -1,7 +1,15 @@
-use etf_analyzer::{analysis, cli, io, portfolio, report, Result};
+use etf_analyzer::{analysis, cli, config, io, portfolio, report, Result};
 
 fn main() -> Result<()> {
-    let args = cli::parse_args();
+    let mut args = cli::parse_args();
+
+    // Load configuration from default locations and merge with CLI args
+    if let Ok(Some(cfg)) = config::Config::load_default() {
+        if args.verbose {
+            println!("Loaded configuration file");
+        }
+        cfg.merge_with_cli(&mut args);
+    }
 
     if args.verbose {
         println!("ETF Analyzer starting...");

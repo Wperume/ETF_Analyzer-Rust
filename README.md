@@ -71,6 +71,35 @@ etf_analyzer [OPTIONS]
 - `--force`: Force overwrite of existing output files without prompting
 - `-v` or `--verbose`: Enable verbose output
 
+### Configuration File
+
+You can create a configuration file to set default values for CLI parameters. The tool looks for configuration files in the following locations (in order):
+
+1. `.etf_analyzer.toml` - Current/project directory
+2. `~/.config/etf_analyzer/config.toml` - User config directory (Linux/macOS)
+3. `~/.etf_analyzer.toml` - User home directory
+
+**CLI arguments always take precedence over configuration file settings.**
+
+See `etf_analyzer.toml.example` for a complete configuration file template with all available options.
+
+**Example configuration file:**
+
+```toml
+# Set default data directory
+data_dir = "./data"
+
+# Default to showing assets sorted by count
+function = "assets"
+sort_by = "count"
+verbose = true
+
+# Column overrides for non-standard CSV files
+[columns]
+symbol_col = "Ticker"
+weight_col = "Weighting"
+```
+
 ### Notes
 
 - Either `-d` or `-i` must be specified

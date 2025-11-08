@@ -32,6 +32,10 @@ dist/
 .env.local
 .env.*.local
 
+# Configuration
+.etf_analyzer.toml
+etf_analyzer.toml
+
 # Documentation
 /doc/
 
