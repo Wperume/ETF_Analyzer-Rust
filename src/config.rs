@@ -34,25 +34,13 @@ pub struct Config {
 }
 
 /// Column name configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ColumnConfig {
     pub symbol_col: Option<String>,
     pub name_col: Option<String>,
     pub weight_col: Option<String>,
     pub shares_col: Option<String>,
     pub number_col: Option<String>,
-}
-
-impl Default for ColumnConfig {
-    fn default() -> Self {
-        Self {
-            symbol_col: None,
-            name_col: None,
-            weight_col: None,
-            shares_col: None,
-            number_col: None,
-        }
-    }
 }
 
 impl Config {
@@ -99,10 +87,8 @@ impl Config {
     fn get_config_dir() -> Option<PathBuf> {
         if let Ok(config_dir) = std::env::var("XDG_CONFIG_HOME") {
             Some(PathBuf::from(config_dir))
-        } else if let Some(home_dir) = Self::get_home_dir() {
-            Some(home_dir.join(".config"))
-        } else {
-            None
+        } else { 
+            Self::get_home_dir().map(|home_dir| home_dir.join(".config")) 
         }
     }
 
@@ -169,6 +155,7 @@ impl Config {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]
@@ -367,5 +354,14 @@ mod tests {
 
         let config: Config = toml::from_str(toml_str).unwrap();
         assert_eq!(config.etfs, Some(vec!["VTI".to_string(), "VOO".to_string(), "SPY".to_string()]));
+    }
+
+    #[test]
+    fn test_get_config_dir_default() {
+
+        let config_path = Config::get_config_dir().unwrap();
+
+        let last = config_path.file_name().unwrap();
+        assert_eq!(last, ".config")
     }
 }

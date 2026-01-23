@@ -1,11 +1,12 @@
 use assert_cmd::Command;
+use assert_cmd::cargo;
 use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
 
 #[test]
 fn test_cli_runs() {
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     // With the updated CLI, we need to provide either -d or -i
     // Test that it fails with the expected error message when neither is provided
     cmd.assert()
@@ -15,7 +16,7 @@ fn test_cli_runs() {
 
 #[test]
 fn test_help_flag() {
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("--help")
         .assert()
         .success()
@@ -24,7 +25,7 @@ fn test_help_flag() {
 
 #[test]
 fn test_version_flag() {
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("--version")
         .assert()
         .success()
@@ -33,7 +34,7 @@ fn test_version_flag() {
 
 #[test]
 fn test_assets_function() {
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("-f")
@@ -49,7 +50,7 @@ fn test_assets_function_with_output() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("test_assets.csv");
 
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("-f")
@@ -73,7 +74,7 @@ fn test_assets_function_default_extension() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("test_assets");
 
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("-f")
@@ -90,7 +91,7 @@ fn test_assets_function_default_extension() {
 
 #[test]
 fn test_unique_function() {
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("-f")
@@ -105,7 +106,7 @@ fn test_unique_function_with_output() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("test_unique.csv");
 
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("-f")
@@ -130,7 +131,7 @@ fn test_export_function_csv() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("test_export.csv");
 
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("-f")
@@ -154,7 +155,7 @@ fn test_export_function_parquet() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("test_export.parquet");
 
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("-f")
@@ -174,7 +175,7 @@ fn test_import_function() {
     let export_path = temp_dir.path().join("test_export.parquet");
 
     // First export data
-    let mut export_cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut export_cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     export_cmd
         .arg("-d")
         .arg("./example-data")
@@ -187,7 +188,7 @@ fn test_import_function() {
         .success();
 
     // Then import it back
-    let mut import_cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut import_cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     import_cmd
         .arg("-i")
         .arg(&export_path)
@@ -200,7 +201,7 @@ fn test_import_function() {
 
 #[test]
 fn test_etf_filter() {
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("--etfs")
@@ -214,7 +215,7 @@ fn test_etf_filter() {
 
 #[test]
 fn test_etf_filter_case_insensitive() {
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("--etfs")
@@ -227,7 +228,7 @@ fn test_etf_filter_case_insensitive() {
 
 #[test]
 fn test_assets_sort_by_count() {
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("-f")
@@ -240,7 +241,7 @@ fn test_assets_sort_by_count() {
 
 #[test]
 fn test_overlap_function() {
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("-f")
@@ -255,7 +256,7 @@ fn test_overlap_function_with_output() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("test_overlap.csv");
 
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("-f")
@@ -280,7 +281,7 @@ fn test_overlap_function_default_extension() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("test_overlap");
 
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("-f")
@@ -300,7 +301,7 @@ fn test_overlap_sort_by_count() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("test_overlap_count.csv");
 
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("-f")
@@ -334,7 +335,7 @@ fn test_overlap_sort_by_count() {
 
 #[test]
 fn test_mapping_function() {
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("-f")
@@ -350,7 +351,7 @@ fn test_mapping_function_with_output() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("test_mapping.csv");
 
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("-f")
@@ -375,7 +376,7 @@ fn test_mapping_function_default_extension() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("test_mapping");
 
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("-f")
@@ -395,7 +396,7 @@ fn test_mapping_sort_by_count() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("test_mapping_count.csv");
 
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("-f")
@@ -429,7 +430,7 @@ fn test_mapping_sort_by_count() {
 
 #[test]
 fn test_list_function() {
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("-f")
@@ -445,7 +446,7 @@ fn test_list_function_with_output() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("test_list.txt");
 
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("-f")
@@ -462,10 +463,10 @@ fn test_list_function_with_output() {
     // Verify the file has content (one ETF per line)
     let content = fs::read_to_string(&output_path).unwrap();
     let lines: Vec<&str> = content.lines().collect();
-    assert!(lines.len() > 0);
+    assert!(!lines.is_empty());
 
     // Verify ETF names are in the file
-    assert!(content.len() > 0);
+    assert!(!content.is_empty());
 }
 
 #[test]
@@ -473,7 +474,7 @@ fn test_list_function_default_extension() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("test_list");
 
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("-f")
@@ -493,7 +494,7 @@ fn test_list_function_with_filter() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("test_list_filter.txt");
 
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("--etfs")
@@ -521,7 +522,7 @@ fn test_list_function_with_filter() {
 
 #[test]
 fn test_summary_function() {
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("-f")
@@ -538,7 +539,7 @@ fn test_summary_function_with_output() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("test_summary.csv");
 
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("-f")
@@ -563,7 +564,7 @@ fn test_summary_function_default_extension() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("test_summary");
 
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("-f")
@@ -583,7 +584,7 @@ fn test_summary_function_with_filter() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("test_summary_filter.csv");
 
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("--etfs")
@@ -610,7 +611,7 @@ fn test_compare_function() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("test_compare.csv");
 
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("--etfs")
@@ -637,7 +638,7 @@ fn test_compare_function_default_extension() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("test_compare");
 
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("--etfs")
@@ -659,7 +660,7 @@ fn test_compare_function_requires_etfs() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("test_compare.csv");
 
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("-f")
@@ -673,7 +674,7 @@ fn test_compare_function_requires_etfs() {
 
 #[test]
 fn test_compare_function_requires_output() {
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg("./example-data")
         .arg("--etfs")
@@ -694,7 +695,7 @@ fn test_column_override_symbol_col() {
     // Write a CSV with custom column names (Ticker instead of Symbol)
     fs::write(&test_file, "Ticker,Name,% Weight,Shares,No.\nAAPL,Apple Inc.,10%,100,1\nMSFT,Microsoft,8%,80,2\n").unwrap();
 
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg(temp_dir.path())
         .arg("--symbol-col")
@@ -716,7 +717,7 @@ fn test_column_override_multiple_columns() {
 
     let output_path = temp_dir.path().join("output.csv");
 
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg(temp_dir.path())
         .arg("--symbol-col")
@@ -752,7 +753,7 @@ fn test_column_override_with_different_order() {
     // Write a CSV with columns in a different order than usual
     fs::write(&test_file, "CompanyName,Weighting,Ticker,Holdings,RowNum\nApple Inc.,10%,AAPL,100,1\nMicrosoft,8%,MSFT,80,2\n").unwrap();
 
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg(temp_dir.path())
         .arg("--symbol-col")
@@ -779,7 +780,7 @@ fn test_column_override_verbose_output() {
 
     fs::write(&test_file, "Ticker,Name,% Weight,Shares,No.\nAAPL,Apple Inc.,10%,100,1\n").unwrap();
 
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.arg("-d")
         .arg(temp_dir.path())
         .arg("--symbol-col")
@@ -808,7 +809,7 @@ fn test_config_file_loads_data_dir() {
     fs::write(&config_file, format!("data_dir = \"{}\"", data_dir.display())).unwrap();
 
     // Run from temp directory so config is loaded
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.current_dir(temp_dir.path())
         .arg("-f")
         .arg("list")
@@ -832,7 +833,7 @@ fn test_config_file_verbose_output() {
     fs::write(&config_file, format!("data_dir = \"{}\"\nverbose = true", data_dir.display())).unwrap();
 
     // Run from temp directory
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.current_dir(temp_dir.path())
         .arg("-f")
         .arg("list")
@@ -862,7 +863,7 @@ fn test_config_file_cli_overrides() {
     fs::write(&config_file, format!("data_dir = \"{}\"", config_data.display())).unwrap();
 
     // Run from temp directory but override data_dir with CLI arg
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.current_dir(temp_dir.path())
         .arg("-d")
         .arg(&cli_data)
@@ -888,7 +889,7 @@ fn test_config_file_function_default() {
     fs::write(&config_file, format!("data_dir = \"{}\"\nfunction = \"list\"", data_dir.display())).unwrap();
 
     // Run without specifying function (should use config default)
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.current_dir(temp_dir.path())
         .assert()
         .success()
@@ -916,7 +917,7 @@ fn test_config_file_sort_by() {
     fs::write(&config_file, format!("data_dir = \"{}\"\nsort_by = \"count\"", data_dir.display())).unwrap();
 
     // Run assets function (should sort by count from config)
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.current_dir(temp_dir.path())
         .arg("-f")
         .arg("assets")
@@ -950,7 +951,7 @@ fn test_config_file_column_overrides() {
     fs::write(&config_file, config_content).unwrap();
 
     // Run from temp directory
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.current_dir(temp_dir.path())
         .arg("-f")
         .arg("assets")
@@ -978,7 +979,7 @@ fn test_config_file_column_overrides_cli_priority() {
     fs::write(&config_file, config_content).unwrap();
 
     // Run with CLI override for symbol_col (should use CLICol, not ConfigCol)
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.current_dir(temp_dir.path())
         .arg("--symbol-col")
         .arg("CLICol")
@@ -1017,7 +1018,7 @@ fn test_config_file_etf_filter() {
     fs::write(&config_file, format!("data_dir = \"{}\"\netfs = [\"VTI\", \"VOO\"]", data_dir.display())).unwrap();
 
     // Run list function (should only show VTI and VOO)
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.current_dir(temp_dir.path())
         .arg("-f")
         .arg("list")
@@ -1046,7 +1047,7 @@ fn test_config_file_force_option() {
     fs::write(&config_file, format!("data_dir = \"{}\"\nforce = true", data_dir.display())).unwrap();
 
     // Run export (should overwrite without prompting due to force in config)
-    let mut cmd = Command::cargo_bin("etf_analyzer").unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!("etf_analyzer"));
     cmd.current_dir(temp_dir.path())
         .arg("-f")
         .arg("export")
